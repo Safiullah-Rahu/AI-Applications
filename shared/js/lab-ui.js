@@ -95,10 +95,12 @@
     let running = true;
     function frame(now) {
       if (!running) return;
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      fn(dt, now / 1000);
+      // rAF timestamps can precede the performance.now() taken at start-up: never pass a negative dt
+      const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
+      last = Math.max(last, now);
+      // schedule first so an exception in one frame cannot silently stop the loop
       id = requestAnimationFrame(frame);
+      fn(dt, now / 1000);
     }
     id = requestAnimationFrame(frame);
     return {
