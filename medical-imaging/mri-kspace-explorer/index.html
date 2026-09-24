@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>k-Space Explorer — MRI Physics &amp; Reconstruction</title>
+  <meta name="description" content="Interactive MRI simulator: tissue relaxation and pulse-sequence contrast, k-space sampling and artefacts, and compressed-sensing reconstruction — all in the browser." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='3' width='18' height='18' rx='4' fill='%230e1528' stroke='%232dd4bf' stroke-width='2'/%3E%3Cpath d='M12 5v14M5 12h14' stroke='%232dd4bf' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2.5' fill='%232dd4bf'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid;
+      height: 100%;
+      min-height: 700px;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: minmax(0, 1.12fr) minmax(0, 1fr);
+      grid-template-areas: 'image kspace recon' 'physics physics diff';
+    }
+    .p-image { grid-area: image; }
+    .p-kspace { grid-area: kspace; }
+    .p-recon { grid-area: recon; }
+    .p-physics { grid-area: physics; }
+    .p-diff { grid-area: diff; }
+    .two { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; }
+    .tab-pane { position: absolute; inset: 0; display: none; }
+    .tab-pane.active { display: block; }
+    .progress { position: absolute; left: 12px; right: 12px; top: 10px; height: 5px; border-radius: 5px; background: rgba(6,10,20,.7); border: 1px solid var(--border); overflow: hidden; opacity: 0; transition: opacity .2s; }
+    .progress.on { opacity: 1; }
+    .progress > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 12px; }
+    .presets .btn { padding: 6px 2px; font-size: 11.5px; }
+    .hidden { display: none !important; }
+    .kspace-toggle { position: absolute; top: 10px; right: 10px; padding: 2px; flex-wrap: nowrap; background: rgba(6,10,20,.8); }
+    .kspace-toggle button { padding: 4px 9px; font-size: 11.5px; }
+    .colorbar { width: 90px; height: 8px; border-radius: 4px; border: 1px solid var(--border-2); }
+    .cb-wrap { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+    .scan-clock { font-family: var(--font-mono); font-size: 12px; color: var(--accent); white-space: nowrap; }
+    .p-physics .legend { gap: 10px; font-size: 11px; justify-content: flex-end; }
+    @media (max-width: 860px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'image' 'kspace' 'recon' 'diff' 'physics'; height: auto; }
+      .p-image, .p-kspace, .p-recon, .p-diff { height: 380px; }
+      .p-physics { height: 360px; }
+    }
+  </style>
+</head>
+<body data-domain="medical">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 7v10M7 12h10"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">k-Space <span class="accent">Explorer</span></div>
+          <div class="brand-sub">MRI physics — tissue contrast, k-space sampling, artefacts &amp; compressed-sensing reconstruction</div>
+        </div>
+      </div>
+      <span class="chip">Medical Imaging</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/medical-imaging/mri-kspace-explorer" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Pulse sequence</div>
+          <div class="presets" id="presets">
+            <button class="btn" data-preset="t1">T1w</button>
+            <button class="btn" data-preset="t2">T2w</button>
+            <button class="btn" data-preset="pd">PD</button>
+            <button class="btn" data-preset="flair">FLAIR</button>
+            <button class="btn" data-preset="stir">STIR</button>
+          </div>
+          <div class="field">
+            <div class="seg" id="seg-seq">
+              <button data-value="SE" class="active" title="Spin echo">SE</button>
+              <button data-value="IR" title="Inversion recovery">IR</button>
+              <button data-value="GRE" title="Spoiled gradient echo">GRE</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-tr">Repetition time TR</label><span class="value" data-value-for="sl-tr"></span></div>
+            <input type="range" id="sl-tr" min="0" max="1000" step="1" value="500" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-te">Echo time TE</label><span class="value" data-value-for="sl-te"></span></div>
+            <input type="range" id="sl-te" min="2" max="250" step="1" value="100" />
+          </div>
+          <div class="field only-ir hidden">
+            <div class="field-row"><label for="sl-ti">Inversion time TI</label><span class="value" data-value-for="sl-ti"></span></div>
+            <input type="range" id="sl-ti" min="50" max="3500" step="10" value="2370" />
+          </div>
+          <div class="field only-gre hidden">
+            <div class="field-row"><label for="sl-flip">Flip angle α</label><span class="value" data-value-for="sl-flip"></span></div>
+            <input type="range" id="sl-flip" min="3" max="90" step="1" value="30" />
+          </div>
+          <label class="switch">Brain tumour with oedema<input type="checkbox" id="tg-lesion" checked /><span class="track"></span></label>
+          <label class="switch">Coil / B₀ phase<input type="checkbox" id="tg-phase" checked /><span class="track"></span></label>
+        </section>
+
+        <section class="section">
+          <div class="section-title">k-space sampling</div>
+          <div class="field">
+            <select id="sel-mask" aria-label="Sampling pattern">
+              <option value="full">Fully sampled (Cartesian)</option>
+              <option value="lowpass">Low-pass — reduced resolution</option>
+              <option value="highpass">High-pass — edges only</option>
+              <option value="parallel">Uniform undersampling (R×)</option>
+              <option value="random">Variable-density random (CS)</option>
+              <option value="radial">Radial spokes</option>
+              <option value="pf">Partial Fourier</option>
+            </select>
+          </div>
+          <div class="field" id="mask-param-field">
+            <div class="field-row"><label for="sl-mask" id="lbl-mask">Parameter</label><span class="value" data-value-for="sl-mask"></span></div>
+            <input type="range" id="sl-mask" min="0" max="100" step="1" value="50" />
+          </div>
+          <label class="switch only-parallel hidden">Fully sampled centre (ACS lines)<input type="checkbox" id="tg-acs" checked /><span class="track"></span></label>
+          <button class="btn block" id="btn-scan"><i data-icon="play"></i>Simulate acquisition</button>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Artefacts &amp; noise</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-noise">Thermal noise σ</label><span class="value" data-value-for="sl-noise"></span></div>
+            <input type="range" id="sl-noise" min="0" max="6" step="0.1" value="0.4" />
+          </div>
+          <label class="switch">RF spike (herringbone)<input type="checkbox" id="tg-spike" /><span class="track"></span></label>
+          <label class="switch">Patient motion (ghosting)<input type="checkbox" id="tg-motion" /><span class="track"></span></label>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Reconstruction</div>
+          <div class="field">
+            <div class="seg" id="seg-recon">
+              <button data-value="zf" class="active">Zero-filled</button>
+              <button data-value="cs">CS wavelet</button>
+              <button data-value="pocs">POCS PF</button>
+            </div>
+          </div>
+          <div class="field only-cs hidden">
+            <div class="field-row"><label for="sl-lambda">Sparsity weight λ</label><span class="value" data-value-for="sl-lambda"></span></div>
+            <input type="range" id="sl-lambda" min="0.001" max="0.03" step="0.001" value="0.006" />
+          </div>
+          <div class="field only-iter hidden">
+            <div class="field-row"><label for="sl-iters">Iterations</label><span class="value" data-value-for="sl-iters"></span></div>
+            <input type="range" id="sl-iters" min="2" max="80" step="1" value="40" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">k-space brush <span class="hint">paint on k-space</span></div>
+          <div class="field">
+            <div class="seg" id="seg-brush">
+              <button data-value="off" class="active">Off</button>
+              <button data-value="erase">Erase</button>
+              <button data-value="restore">Restore</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-brush">Brush radius</label><span class="value" data-value-for="sl-brush"></span></div>
+            <input type="range" id="sl-brush" min="2" max="40" step="1" value="10" />
+          </div>
+          <button class="btn block" id="btn-clear-edits"><i data-icon="eraser"></i>Reset brush edits</button>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-image">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Object</div>
+              <div class="panel-sub" id="image-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-image"></canvas>
+              <div class="overlay-label bl mono" id="tissue-readout" style="display:none"></div>
+            </div></div>
+          </section>
+
+          <section class="panel p-kspace">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>k-space</div>
+              <div class="panel-sub" id="kspace-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-kspace" class="interactive"></canvas>
+              <div class="seg no-dot kspace-toggle" id="seg-kview">
+                <button data-value="mag" class="active">|k|</button>
+                <button data-value="phase">∠k</button>
+              </div>
+              <div class="overlay-label bl mono" id="kspace-stats"></div>
+            </div></div>
+          </section>
+
+          <section class="panel p-recon">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Reconstruction</div>
+              <div class="panel-sub" id="recon-sub"></div>
+              <div class="spacer"></div>
+              <span class="scan-clock" id="scan-clock"></span>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-recon"></canvas>
+              <div class="progress" id="progress"><span></span></div>
+              <div class="overlay-label bl mono" id="recon-stats"></div>
+            </div></div>
+          </section>
+
+          <section class="panel p-physics">
+            <div class="panel-head">
+              <div class="seg no-dot" id="seg-phys" style="padding:2px;flex-wrap:nowrap">
+                <button data-value="relax" class="active">Relaxation</button>
+                <button data-value="bars">Contrast</button>
+              </div>
+              <div class="spacer"></div>
+              <div class="legend" id="tissue-legend"></div>
+            </div>
+            <div class="panel-body">
+              <div class="tab-pane active" data-tab="relax"><div class="two">
+                <div class="canvas-wrap"><canvas id="cv-mz"></canvas></div>
+                <div class="canvas-wrap"><canvas id="cv-mxy"></canvas></div>
+              </div></div>
+              <div class="tab-pane" data-tab="bars"><div class="canvas-wrap"><canvas id="cv-bars"></canvas></div></div>
+            </div>
+          </section>
+
+          <section class="panel p-diff">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Error</div>
+              <div class="spacer"></div>
+              <div class="cb-wrap"><span>−15%</span><div class="colorbar" id="colorbar"></div><span>+15%</span></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-diff"></canvas></div></div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How k-Space Explorer works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>An MRI scanner never measures an image directly: it samples the <strong>Fourier transform</strong> of the
+        transverse magnetisation — <em>k-space</em>. This app simulates the chain from tissue physics to image reconstruction.</p>
+      <h3>1 · Tissue contrast</h3>
+      <p>A procedural axial brain slice (scalp, diploë, CSF, folded cortex, white matter, basal ganglia, ventricles and an
+        optional tumour with oedema) is stored as partial-volume tissue fractions. Each tissue has proton density and relaxation times at 1.5 T:</p>
+      <div class="eq">SE : S = PD·(1 − e^(−TR/T1))·e^(−TE/T2)
+IR : S = PD·|1 − 2e^(−TI/T1) + e^(−TR/T1)|·e^(−TE/T2)
+GRE: S = PD·sinα·(1 − E1)/(1 − cosα·E1)·e^(−TE/T2*)</div>
+      <p>Short TR/TE → <strong>T1-weighting</strong>; long TR/TE → <strong>T2-weighting</strong>. FLAIR chooses TI ≈ T1<sub>CSF</sub>·ln 2 to null
+        fluid, STIR nulls fat.</p>
+      <h3>2 · k-space</h3>
+      <p>The complex image (with a smooth coil/B₀ phase) is transformed with a centred 2-D FFT. The centre of k-space holds
+        contrast, the periphery holds edges. Every phase-encode line costs one TR, so scan time = lines × TR.</p>
+      <h3>3 · Sampling &amp; artefacts</h3>
+      <ul>
+        <li><strong>Low-pass</strong> → blur and Gibbs ringing · <strong>high-pass</strong> → edge image.</li>
+        <li><strong>Uniform R× undersampling</strong> → fold-over aliasing (what parallel imaging unfolds).</li>
+        <li><strong>Random variable-density</strong> → incoherent, noise-like aliasing that sparsity priors can remove.</li>
+        <li><strong>Radial</strong> spokes → streaks; <strong>partial Fourier</strong> → exploits Hermitian symmetry.</li>
+        <li>A single corrupted sample (<strong>RF spike</strong>) gives a herring-bone pattern; line-to-line phase errors from <strong>motion</strong> give ghosts along the phase-encode direction.</li>
+      </ul>
+      <h3>4 · Reconstruction</h3>
+      <p><strong>Zero-filled</strong>: inverse FFT with missing samples set to zero. <strong>Compressed sensing</strong>: FISTA on</p>
+      <div class="eq">min ½‖M·F·x − y‖² + λ‖Ψx‖₁      (Ψ = 4-level Haar wavelet)</div>
+      <p>where each iteration enforces data consistency in k-space and soft-thresholds wavelet coefficients.
+        <strong>POCS</strong> fills unmeasured partial-Fourier lines using the phase of a low-resolution centre.</p>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Click FLAIR: CSF goes dark and the oedema lights up.</li>
+        <li>Pick “Uniform undersampling”, R = 3 — then switch to random sampling and CS.</li>
+        <li>Brush-erase the centre of k-space and watch the contrast disappear.</li>
+        <li>Simulate a T2 acquisition and note the scan time.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="mri-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

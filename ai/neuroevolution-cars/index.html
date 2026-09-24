@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EvoDrive — Neuroevolution Self-Driving Cars</title>
+  <meta name="description" content="Watch a population of neural-network drivers learn to race on procedurally generated tracks through a genetic algorithm — ray sensors, grip-limited car physics, live brain view, and a race-the-AI mode." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='7' y='3' width='10' height='18' rx='4' fill='%23f472b6'/%3E%3Crect x='8.5' y='6' width='7' height='4' rx='1.2' fill='%23060a14'/%3E%3Cpath d='M12 3L3 -4M12 3l9 -7' stroke='%23818cf8' stroke-width='1.5'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid;
+      height: 100%;
+      min-height: 660px;
+      gap: 12px;
+      grid-template-columns: minmax(0, 2.05fr) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1.7fr) minmax(0, 1fr);
+      grid-template-areas: 'track brain' 'fit pop';
+    }
+    .p-track { grid-area: track; }
+    .p-brain { grid-area: brain; }
+    .p-fit { grid-area: fit; }
+    .p-pop { grid-area: pop; }
+    .hud { position: absolute; display: flex; gap: 6px; pointer-events: none; }
+    .hud.tl { top: 10px; left: 10px; }
+    .hud.tr { top: 10px; right: 10px; }
+    .hud .cell { background: rgba(6, 10, 20, 0.78); border: 1px solid var(--border); border-radius: 8px; padding: 4px 9px 5px; backdrop-filter: blur(4px); min-width: 64px; }
+    .hud .k { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+    .hud .v { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; }
+    .hud .v small { font-size: 11px; color: var(--muted); font-weight: 500; }
+    .hud .v.accent { color: var(--accent); }
+    .hud .v.good { color: var(--good); }
+    .banner {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      background: rgba(6, 10, 20, 0.86); border: 1px solid var(--border-2); border-radius: 14px;
+      padding: 16px 22px; text-align: center; max-width: 440px; backdrop-filter: blur(6px);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    }
+    .banner h3 { margin: 0 0 6px; font-size: 16px; color: var(--text); }
+    .banner p { margin: 0; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+    .banner .keys { margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+    .banner .result { font-family: var(--font-mono); font-size: 14px; margin-top: 8px; color: var(--text); }
+    .pop-body { display: flex; flex-direction: column; }
+    .pop-body .stats { padding: 10px 12px 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .pop-body .stat { padding: 6px 9px; }
+    .pop-body .stat .v { font-size: 15px; }
+    .pop-body .canvas-wrap { flex: 1; }
+    .seed-row { display: flex; align-items: center; gap: 8px; }
+    .seed-row .seed { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); background: var(--inset); border: 1px solid var(--border-2); border-radius: 7px; padding: 5px 8px; flex: 1; }
+    .champ-card { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .champ-card .btn { justify-content: center; }
+    .hidden { display: none !important; }
+    .tiny { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+    @media (max-width: 1100px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'track' 'brain' 'fit' 'pop'; height: auto; }
+      .p-track { height: 520px; }
+      .p-brain { height: 440px; }
+      .p-fit, .p-pop { height: 300px; }
+    }
+    @media (max-width: 560px) {
+      .p-track { height: 330px; }
+      .hud .cell { min-width: 0; padding: 3px 7px; }
+      .hud .v { font-size: 13px; }
+      .hud .hud-opt { display: none; }
+      .banner { max-width: calc(100% - 24px); padding: 12px 14px; }
+    }
+  </style>
+</head>
+<body data-domain="ai">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="7" width="8" height="14" rx="3"/><path d="M9.5 10.5h5"/><path d="M12 7L5 2M12 7l7-5M12 7V1.5"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Evo<span class="accent">Drive</span></div>
+          <div class="brand-sub">Neuroevolution — neural-network drivers learn to race through a genetic algorithm</div>
+        </div>
+      </div>
+      <span class="chip">Artificial Intelligence</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/ai/neuroevolution-cars" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Simulation <span class="hint"><kbd>Space</kbd> run · <kbd>G</kbd> skip</span></div>
+          <div class="btn-row">
+            <button class="btn primary" id="btn-play"><i data-icon="pause"></i><span>Pause</span></button>
+            <button class="btn" id="btn-skip" title="Finish this generation instantly"><i data-icon="step"></i>Skip gen</button>
+            <button class="btn" id="btn-reset" title="New random population"><i data-icon="reset"></i></button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <div class="field-row"><span class="label">Speed</span></div>
+            <div class="seg" id="seg-speed">
+              <button data-value="1" class="active">1×</button>
+              <button data-value="3">3×</button>
+              <button data-value="10">10×</button>
+              <button data-value="40">40×</button>
+              <button data-value="max">Max</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Track <span class="hint"><kbd>N</kbd> new</span></div>
+          <div class="seed-row">
+            <span class="seed" id="track-seed">seed 1</span>
+            <button class="btn" id="btn-track"><i data-icon="shuffle"></i>New track</button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <div class="field-row"><label for="sl-width">Track width</label><span class="value" data-value-for="sl-width"></span></div>
+            <input type="range" id="sl-width" min="22" max="40" step="1" value="30" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-curvy">Curviness</label><span class="value" data-value-for="sl-curvy"></span></div>
+            <input type="range" id="sl-curvy" min="0.1" max="0.7" step="0.05" value="0.45" />
+          </div>
+          <label class="switch">New track every generation<input type="checkbox" id="tg-rotate" /><span class="track"></span></label>
+          <div class="tiny">Scoring every generation on a fresh track stops the drivers memorising one circuit — they must learn to <em>drive</em>.</div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Evolution</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-pop">Population</label><span class="value" data-value-for="sl-pop"></span></div>
+            <input type="range" id="sl-pop" min="10" max="150" step="5" value="50" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-mrate">Mutation rate</label><span class="value" data-value-for="sl-mrate"></span></div>
+            <input type="range" id="sl-mrate" min="0.01" max="0.5" step="0.01" value="0.08" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-msigma">Mutation strength σ</label><span class="value" data-value-for="sl-msigma"></span></div>
+            <input type="range" id="sl-msigma" min="0.05" max="1.2" step="0.05" value="0.25" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-elite">Elites kept</label><span class="value" data-value-for="sl-elite"></span></div>
+            <input type="range" id="sl-elite" min="0" max="10" step="1" value="4" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-hidden">Hidden neurons</label><span class="value" data-value-for="sl-hidden"></span></div>
+            <input type="range" id="sl-hidden" min="2" max="16" step="1" value="8" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Car</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-grip">Tyre grip</label><span class="value" data-value-for="sl-grip"></span></div>
+            <input type="range" id="sl-grip" min="300" max="1000" step="20" value="520" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-range">Sensor range</label><span class="value" data-value-for="sl-range"></span></div>
+            <input type="range" id="sl-range" min="60" max="260" step="10" value="170" />
+          </div>
+          <div class="field">
+            <div class="field-row"><span class="label">Show sensors</span></div>
+            <div class="seg" id="seg-rays">
+              <button data-value="leader" class="active">Leader</button>
+              <button data-value="all">All cars</button>
+              <button data-value="none">None</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Champion</div>
+          <button class="btn primary block" id="btn-race"><i data-icon="target"></i>Race the champion yourself</button>
+          <div class="champ-card" style="margin-top:8px">
+            <button class="btn" id="btn-save"><i data-icon="download"></i>Save brain</button>
+            <button class="btn" id="btn-load"><i data-icon="upload"></i>Load brain</button>
+          </div>
+          <button class="btn ghost block" id="btn-pretrained" style="margin-top:8px"><i data-icon="sparkle"></i>Load pre-trained driver</button>
+          <input type="file" id="file-brain" accept=".json,application/json" class="hidden" />
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-track">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Track</div>
+              <div class="panel-sub" id="track-sub"></div>
+              <div class="spacer"></div>
+              <div class="legend">
+                <span><i class="box" style="background:#f472b6"></i>leader</span>
+                <span><i class="box" style="background:#fbbf24"></i>elite</span>
+                <span><i class="box" style="background:#8b93b8"></i>offspring</span>
+                <span><i class="box" style="background:#34d399"></i>finished</span>
+                <span><i style="background:linear-gradient(90deg,#38bdf8,#f472b6)"></i>last best line</span>
+              </div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap">
+              <canvas id="cv-track"></canvas>
+              <div class="hud tl" id="hud-left">
+                <div class="cell"><div class="k" id="hud-k1">Generation</div><div class="v accent" id="hud-gen">1</div></div>
+                <div class="cell"><div class="k" id="hud-k2">Alive</div><div class="v" id="hud-alive">—</div></div>
+                <div class="cell hud-opt"><div class="k" id="hud-k3">Time</div><div class="v" id="hud-time">0.0<small>s</small></div></div>
+              </div>
+              <div class="hud tr" id="hud-right">
+                <div class="cell"><div class="k" id="hud-k4">Leader</div><div class="v" id="hud-lap">—</div></div>
+                <div class="cell hud-opt"><div class="k" id="hud-k5">Speed</div><div class="v" id="hud-speed">0<small>km/h</small></div></div>
+              </div>
+              <div class="banner hidden" id="banner"></div>
+            </div></div>
+          </section>
+
+          <section class="panel p-brain">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Leader’s brain</div>
+              <div class="panel-sub" id="brain-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-brain"></canvas></div></div>
+          </section>
+
+          <section class="panel p-fit">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Fitness per generation</div>
+              <div class="panel-sub" id="fit-sub"></div>
+              <div class="spacer"></div>
+              <div class="legend">
+                <span><i style="background:#f472b6"></i>best</span>
+                <span><i style="background:#818cf8"></i>mean</span>
+                <span><i class="box" style="background:rgba(129,140,248,.35)"></i>25–75 %</span>
+              </div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-fit"></canvas></div></div>
+          </section>
+
+          <section class="panel p-pop">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Population</div>
+              <div class="panel-sub" id="pop-sub"></div>
+            </div>
+            <div class="panel-body pop-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Best lap</div><div class="v" id="st-lap">—</div></div>
+                <div class="stat"><div class="k">First lap</div><div class="v" id="st-first">—</div></div>
+                <div class="stat"><div class="k">Finishers</div><div class="v" id="st-fin">—</div></div>
+              </div>
+              <div class="canvas-wrap"><canvas id="cv-pop"></canvas></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How EvoDrive works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>No gradients, no training data. A population of cars drives the same track at the same time. Each car’s
+        neural network is encoded as one flat vector of numbers (its <em>genome</em>). After every generation the
+        better drivers are more likely to become parents, so good driving spreads through the population.</p>
+      <h3>Sensing and thinking</h3>
+      <p>Each car casts 7 rays (−90°, −50°, −22°, 0°, 22°, 50°, 90°). A spatial grid over the track walls and an
+        Amanatides–Woo grid walk keep every ray query exact and fast. The inputs are the ray proximities <code>1 − d/R</code>
+        plus the car’s own speed. A fully connected network with tanh units, <code>8 → H → 2</code>, outputs steering
+        and throttle/brake in [−1, 1].</p>
+      <h3>Physics</h3>
+      <div class="eq">ψ̇ = v / L · tan(δ),   |ψ̇| ≤ a_lat / v     (kinematic bicycle + grip limit)
+v̇ = a_throttle − c_d · v</div>
+      <p>With the grip limit, a car that enters a corner too fast <strong>understeers</strong> and runs wide (skid marks).
+        Holding full throttle is not enough: good drivers learn to brake before tight corners.</p>
+      <h3>Fitness</h3>
+      <div class="eq">f = 100 · (furthest progress in laps) + [finished] · 100 · (1 − t / t_max)</div>
+      <p>A car is out when it touches a wall, stops making progress for 2.5 s, or runs out of time. Finishing 3 laps earns
+        a bonus that grows the faster the laps were driven.</p>
+      <h3>Genetic algorithm</h3>
+      <ul>
+        <li><strong>Elitism</strong>: the best genomes are copied unchanged (gold cars), so the record never gets worse.</li>
+        <li><strong>Tournament selection</strong> (k = 3) picks the parents.</li>
+        <li><strong>Uniform crossover</strong>: each weight comes from one of the two parents.</li>
+        <li><strong>Gaussian mutation</strong>: each weight is perturbed with probability <em>p</em> by 𝒩(0, σ²).</li>
+      </ul>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Let it solve the track, then press <strong>New track</strong>: some champions generalise, others only memorised one circuit.
+          Turn on <em>New track every generation</em> to breed drivers that generalise.</li>
+        <li>Lower the <em>tyre grip</em>: the drivers now have to learn to brake.</li>
+        <li>Try 2 hidden neurons, or a very high mutation strength, and compare how fast the population learns.</li>
+        <li><strong>Race the champion</strong> with the arrow keys or WASD.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="evo-core.js"></script>
+  <script src="pretrained.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MyoHand — EMG Prosthetic Hand Controller</title>
+  <meta name="description" content="Myoelectric prosthesis simulator: 8-channel surface EMG, filtering, Hudgins features, LDA / k-NN / MLP gesture recognition and a real-time animated robotic hand." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V3.5a1.5 1.5 0 0 1 3 0V11M14 11V5a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6 7-2.5 0-4-1.5-5.5-4L4 13a1.5 1.5 0 0 1 2.5-1.5L8 13' fill='none' stroke='%23a78bfa' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid;
+      height: 100%;
+      min-height: 680px;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1.05fr) minmax(0, 1fr);
+      grid-template-areas: 'emg hand' 'emg analysis';
+    }
+    .p-emg { grid-area: emg; }
+    .p-hand { grid-area: hand; }
+    .p-analysis { grid-area: analysis; }
+    .emg-body { display: flex; flex-direction: column; }
+    .emg-body > .canvas-wrap { flex: 1; }
+    .emg-bottom { display: grid; grid-template-columns: 190px 1fr; gap: 10px; height: 200px; padding: 0 12px 12px; }
+    .emg-bottom .box { position: relative; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
+    .box-title { position: absolute; top: 7px; left: 10px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 650; z-index: 1; }
+    .gesture-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .gesture-grid .btn { justify-content: flex-start; padding: 7px 8px; font-size: 12px; min-width: 0; overflow: hidden; }
+    .gesture-grid .btn .nm { overflow: hidden; text-overflow: ellipsis; }
+    .gesture-grid .btn:last-child { grid-column: 1 / -1; }
+    .gesture-grid .btn .sw { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+    .gesture-grid .btn kbd { margin-left: auto; }
+    .gesture-grid .btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+    .calib-status { font-size: 12px; color: var(--text-2); margin-top: 9px; line-height: 1.5; }
+    .calib-status b { color: var(--text); font-family: var(--font-mono); }
+    .hand-overlay { position: absolute; bottom: 14px; left: 16px; pointer-events: none; }
+    .pred-label { font-size: 22px; font-weight: 750; letter-spacing: -.01em; }
+    .pred-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+    .prob-bars { position: absolute; right: 12px; top: 12px; width: 210px; display: flex; flex-direction: column; gap: 5px; pointer-events: none; }
+    .prob-row { display: grid; grid-template-columns: 92px 1fr 34px; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+    .prob-row .bar { height: 7px; }
+    .prob-row b { font-family: var(--font-mono); font-weight: 500; color: var(--text-2); text-align: right; }
+    .calib-overlay { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); min-width: 300px; padding: 10px 14px; border-radius: 12px; background: rgba(6,10,20,.88); border: 1px solid var(--accent); box-shadow: 0 0 30px var(--accent-soft); text-align: center; display: none; }
+    .calib-overlay.on { display: block; }
+    .calib-overlay .t1 { font-size: 11px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+    .calib-overlay .t2 { font-size: 18px; font-weight: 700; margin: 3px 0 7px; }
+    .analysis-body { display: flex; flex-direction: column; }
+    .analysis-body .stats { padding: 10px 12px 0; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+    .analysis-body .stat { padding: 7px 9px; }
+    .analysis-body .stat .v { font-size: 15px; }
+    .analysis-body .canvas-wrap { flex: 1; }
+    .hidden { display: none !important; }
+    @media (max-width: 1100px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'hand' 'emg' 'analysis'; height: auto; }
+      .p-hand { height: 440px; }
+      .p-emg { height: 640px; }
+      .p-analysis { height: 420px; }
+    }
+  </style>
+</head>
+<body data-domain="assistive">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V3.5a1.5 1.5 0 0 1 3 0V11M14 11V5a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6 7-2.5 0-4-1.5-5.5-4L4 13a1.5 1.5 0 0 1 2.5-1.5L8 13"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Myo<span class="accent">Hand</span></div>
+          <div class="brand-sub">EMG pattern-recognition control of a prosthetic hand — signals, features, classifiers, robotic hand</div>
+        </div>
+      </div>
+      <span class="chip">Assistive Robotics</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/assistive-robotics/emg-prosthetic-hand" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Intended gesture <span class="hint">keys 1–7</span></div>
+          <div class="gesture-grid" id="gestures"></div>
+          <label class="switch" style="margin-top:10px">Demo sequence (cycles gestures)<input type="checkbox" id="tg-demo" checked /><span class="track"></span></label>
+          <div class="field">
+            <div class="field-row"><label for="sl-effort">Contraction effort</label><span class="value" data-value-for="sl-effort"></span></div>
+            <input type="range" id="sl-effort" min="0.3" max="1" step="0.05" value="0.7" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Calibration</div>
+          <div class="grid-2">
+            <div class="field" style="margin:0">
+              <div class="field-row"><label for="sl-reps">Repetitions</label><span class="value" data-value-for="sl-reps"></span></div>
+              <input type="range" id="sl-reps" min="2" max="5" step="1" value="3" />
+            </div>
+            <div class="field" style="margin:0">
+              <div class="field-row"><label for="sl-hold">Hold</label><span class="value" data-value-for="sl-hold"></span></div>
+              <input type="range" id="sl-hold" min="1" max="4" step="0.5" value="1.5" />
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn primary" id="btn-calib"><i data-icon="play"></i>Guided</button>
+            <button class="btn" id="btn-quick"><i data-icon="zap"></i>Instant</button>
+          </div>
+          <div class="calib-status" id="calib-status">Not calibrated.</div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Classifier</div>
+          <div class="field">
+            <div class="seg" id="seg-clf">
+              <button data-value="lda" class="active">LDA</button>
+              <button data-value="knn">k-NN</button>
+              <button data-value="mlp">MLP</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-vote">Majority vote (decisions)</label><span class="value" data-value-for="sl-vote"></span></div>
+            <input type="range" id="sl-vote" min="1" max="11" step="2" value="5" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-reject">Rejection threshold</label><span class="value" data-value-for="sl-reject"></span></div>
+            <input type="range" id="sl-reject" min="0" max="0.9" step="0.05" value="0.5" />
+            <div class="help">Low-confidence decisions default to Rest — a common safety feature.</div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Real-world conditions</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-shift">Armband rotation (electrodes)</label><span class="value" data-value-for="sl-shift"></span></div>
+            <input type="range" id="sl-shift" min="0" max="1.5" step="0.05" value="0" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-fatigue">Muscle fatigue</label><span class="value" data-value-for="sl-fatigue"></span></div>
+            <input type="range" id="sl-fatigue" min="0" max="1" step="0.05" value="0" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-noise">Electrode noise</label><span class="value" data-value-for="sl-noise"></span></div>
+            <input type="range" id="sl-noise" min="0" max="0.12" step="0.005" value="0.02" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-power">50 Hz interference</label><span class="value" data-value-for="sl-power"></span></div>
+            <input type="range" id="sl-power" min="0" max="0.5" step="0.01" value="0" />
+          </div>
+          <label class="switch">50 Hz notch filter<input type="checkbox" id="tg-notch" checked /><span class="track"></span></label>
+          <label class="switch">Motion artefacts<input type="checkbox" id="tg-motion" /><span class="track"></span></label>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-emg">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Surface EMG</div>
+              <div class="panel-sub">8 channels · 1 kHz · 200 ms windows / 50 ms step</div>
+              <div class="spacer"></div>
+              <div class="seg no-dot" id="seg-sig" style="padding:2px;flex-wrap:nowrap">
+                <button data-value="filtered" class="active">Filtered</button>
+                <button data-value="raw">Raw</button>
+              </div>
+            </div>
+            <div class="panel-body emg-body">
+              <div class="canvas-wrap"><canvas id="cv-emg"></canvas></div>
+              <div class="emg-bottom">
+                <div class="box"><span class="box-title">Armband</span><div class="canvas-wrap"><canvas id="cv-ring"></canvas></div></div>
+                <div class="box"><span class="box-title">Hudgins features · z-score</span><div class="canvas-wrap"><canvas id="cv-feat"></canvas></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel p-hand">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Prosthetic hand</div>
+              <div class="panel-sub" id="hand-sub">7-DOF robotic hand · proportional speed control</div>
+              <div class="spacer"></div>
+              <span class="chip good" id="match-chip">—</span>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-hand"></canvas>
+              <div class="hand-overlay">
+                <div class="pred-label" id="pred-label">Rest</div>
+                <div class="pred-sub" id="pred-sub">intended: Rest</div>
+              </div>
+              <div class="prob-bars" id="prob-bars"></div>
+              <div class="calib-overlay" id="calib-overlay">
+                <div class="t1" id="calib-step">Calibration</div>
+                <div class="t2" id="calib-prompt">Relax</div>
+                <div class="bar"><span id="calib-bar" style="width:0%"></span></div>
+              </div>
+            </div></div>
+          </section>
+
+          <section class="panel p-analysis">
+            <div class="panel-head">
+              <div class="seg no-dot" id="seg-tab" style="padding:2px;flex-wrap:nowrap">
+                <button data-value="space" class="active">Feature space</button>
+                <button data-value="confusion">Confusion</button>
+                <button data-value="timeline">Timeline</button>
+              </div>
+              <div class="spacer"></div>
+              <div class="legend" id="tab-legend"></div>
+            </div>
+            <div class="panel-body analysis-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Hold-out</div><div class="v" id="st-acc">—</div></div>
+                <div class="stat"><div class="k">Live 10 s</div><div class="v" id="st-live">—</div></div>
+                <div class="stat"><div class="k">Latency</div><div class="v" id="st-lat">—</div></div>
+                <div class="stat"><div class="k">Train</div><div class="v" id="st-train">—</div></div>
+              </div>
+              <div class="canvas-wrap"><canvas id="cv-analysis"></canvas></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How MyoHand works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>Modern upper-limb prostheses are controlled by <strong>surface electromyography (sEMG)</strong>: electrodes on the residual
+        forearm pick up the electrical activity of muscles the user can still contract. MyoHand reproduces the complete
+        pattern-recognition pipeline used in research and clinical systems.</p>
+      <h3>1 · Signal model</h3>
+      <p>Eight electrodes sit around the forearm like a Myo armband. Each gesture recruits a characteristic <strong>muscle synergy</strong>
+        (flexors, extensors, thumb muscles…). Each channel is band-limited Gaussian noise (≈ 30–150 Hz) amplitude-modulated by a
+        smooth activation, with repetition-to-repetition variability, electrode noise, 50 Hz interference and motion artefacts.
+        Fatigue lowers the spectral content (median-frequency shift) and raises amplitude.</p>
+      <h3>2 · Conditioning &amp; features</h3>
+      <p>A 20 Hz high-pass removes drift and motion, an optional notch removes mains hum. Every 50 ms a 200 ms window is summarised
+        with the classic <strong>Hudgins time-domain features</strong> per channel:</p>
+      <div class="eq">MAV = (1/N) Σ|xᵢ|             WL  = (1/N) Σ|xᵢ − xᵢ₋₁|
+ZC  = zero crossings / N       SSC = slope-sign changes / N</div>
+      <p>→ a 32-dimensional feature vector, z-scored with calibration statistics.</p>
+      <h3>3 · Classifiers</h3>
+      <ul>
+        <li><strong>LDA</strong> — Gaussian classes with a shared (shrinkage-regularised) covariance; the clinical workhorse: tiny, fast, robust.</li>
+        <li><strong>k-NN</strong> — majority vote of the 5 closest calibration windows.</li>
+        <li><strong>MLP</strong> — 32→24 tanh→7 softmax network trained in the browser with Adam.</li>
+      </ul>
+      <p>Accuracy is measured on the <strong>last repetition</strong> of every gesture (never seen in training). Overlapping windows
+        from one contraction are highly correlated, so a random split would overestimate performance.</p>
+      <h3>4 · Control</h3>
+      <p>Decisions are smoothed with a majority vote; low-confidence windows are rejected to Rest. The hand moves towards the
+        decoded posture at a speed proportional to contraction intensity (proportional control).</p>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Rotate the armband by half an electrode — accuracy collapses. Recalibrate to recover.</li>
+        <li>Add fatigue and watch the live feature point drift away from its cluster.</li>
+        <li>Turn the notch off with strong 50 Hz interference.</li>
+        <li>Compare LDA and MLP after an electrode shift.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="emg-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
