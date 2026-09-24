@@ -719,8 +719,14 @@
         ctx.font = `600 11px ${T.sans}`;
         ctx.fillStyle = T.text2;
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(o.title, r.x + 8, r.y + 7);
+        // draw above the plot area when there is room in the top padding, otherwise inside it
+        if (o.pad.t >= 18) {
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(o.title, r.x, r.y - 5);
+        } else {
+          ctx.textBaseline = 'top';
+          ctx.fillText(o.title, r.x + 8, r.y + 7);
+        }
       }
     }
     _drawSeries(s, X, Y, r) {
