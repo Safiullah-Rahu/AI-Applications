@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MotorLab — PID Servo Tuning Studio</title>
+  <meta name="description" content="Physics-based DC servo motor simulator for tuning PID position and velocity loops: live scopes, step metrics, relay auto-tuning, Bode plots and closed-loop poles." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%230e1528' stroke='%23fbbf24' stroke-width='2'/%3E%3Cpath d='M12 12L12 4' stroke='%23fbbf24' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid;
+      height: 100%;
+      min-height: 660px;
+      gap: 12px;
+      grid-template-columns: minmax(330px, 0.95fr) minmax(0, 1.75fr);
+      grid-template-rows: minmax(0, 1.12fr) minmax(0, 1fr);
+      grid-template-areas: 'servo resp' 'metrics analysis';
+    }
+    .p-servo { grid-area: servo; }
+    .p-resp { grid-area: resp; }
+    .p-metrics { grid-area: metrics; }
+    .p-analysis { grid-area: analysis; }
+
+    .servo-body { display: flex; flex-direction: column; }
+    .servo-body .canvas-wrap { flex: 1; }
+    .meters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 12px 12px; }
+    .meter { background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 7px 9px; }
+    .meter .top { font-size: 10.5px; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; font-weight: 650; }
+    .meter > b { display: block; font-family: var(--font-mono); font-size: 13px; color: var(--text); font-weight: 600; margin-top: 2px; white-space: nowrap; }
+    .mbar { position: relative; height: 6px; margin-top: 6px; border-radius: 6px; background: var(--inset); border: 1px solid var(--border); overflow: hidden; }
+    .mbar::after { content: ''; position: absolute; left: 50%; top: -1px; bottom: -1px; width: 1px; background: var(--border-2); }
+    .mbar > span { position: absolute; top: 0; bottom: 0; left: 50%; width: 0; border-radius: 6px; background: var(--accent); }
+    .mbar.sat > span { background: var(--bad); }
+
+    .metrics-body { padding: 12px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+    .p-metrics .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .loop-health { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .p-metrics .stat { padding: 7px 10px; }
+    .p-metrics .stat .k { letter-spacing: .04em; }
+    .p-metrics .stat .v { font-size: 17px; }
+    .health-title { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+    .tab-pane { position: absolute; inset: 0; display: none; }
+    .tab-pane.active { display: flex; flex-direction: column; }
+    .tab-pane .canvas-wrap { flex: 1; }
+    .tab-pane .split { flex: 1; display: grid; grid-template-rows: 1fr 1fr; min-height: 0; }
+    .tf-line { font-family: var(--font-mono); font-size: 11px; color: var(--muted); padding: 0 12px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .tuning-banner { display: none; align-items: center; gap: 8px; font-size: 12px; color: var(--warn); }
+    .tuning-banner.on { display: inline-flex; }
+    .tuning-banner .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); animation: pulse 1s infinite; }
+    @keyframes pulse { 50% { opacity: .25; } }
+
+    .tune-result { font-size: 12px; color: var(--text-2); background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; margin-top: 10px; line-height: 1.55; display: none; }
+    .tune-result.on { display: block; }
+    .tune-result b { color: var(--text); font-family: var(--font-mono); font-weight: 600; }
+    .preset-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+    .preset-row .btn { padding: 6px 4px; font-size: 11.5px; }
+    .gain-unit { font-size: 10.5px; color: var(--muted); margin-left: 4px; }
+
+    @media (max-width: 860px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'servo' 'resp' 'metrics' 'analysis'; height: auto; }
+      .p-servo { height: 460px; }
+      .p-resp, .p-analysis { height: 340px; }
+    }
+  </style>
+</head>
+<body data-domain="mechatronics">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.2"/><path d="M12 3.5v4M12 16.5v4M3.5 12h4M16.5 12h4"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Motor<span class="accent">Lab</span></div>
+          <div class="brand-sub">DC servo PID tuning studio — physics-based simulation, live scopes &amp; loop analysis</div>
+        </div>
+      </div>
+      <span class="chip">Mechatronics</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/GPT-Applications/tree/main/mechatronics/pid-motor-lab" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Simulation <span class="hint"><kbd>Space</kbd> pause · <kbd>R</kbd> reset</span></div>
+          <div class="btn-row" style="margin-bottom:10px">
+            <button class="btn primary" id="btn-play"><i data-icon="pause"></i><span>Pause</span></button>
+            <button class="btn" id="btn-reset"><i data-icon="reset"></i>Reset</button>
+          </div>
+          <div class="field">
+            <div class="field-row"><span class="label">Time scale</span></div>
+            <div class="seg" id="seg-speed">
+              <button data-value="0.1">0.1×</button>
+              <button data-value="0.25">0.25×</button>
+              <button data-value="0.5" class="active">0.5×</button>
+              <button data-value="1">1×</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Control loop</div>
+          <div class="field">
+            <div class="seg" id="seg-mode">
+              <button data-value="position" class="active">Position</button>
+              <button data-value="velocity">Velocity</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><span class="label">Setpoint profile</span></div>
+            <div class="seg" id="seg-profile">
+              <button data-value="manual">Manual</button>
+              <button data-value="square" class="active">Square</button>
+              <button data-value="sine">Sine</button>
+              <button data-value="ramp">Ramp</button>
+            </div>
+            <div class="help" id="profile-help">Click the dial to command a new angle. <kbd>←</kbd> <kbd>→</kbd> nudge ±15°.</div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-amp" id="lbl-amp">Step size</label><span class="value" data-value-for="sl-amp"></span></div>
+            <input type="range" id="sl-amp" min="10" max="180" step="5" value="90" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-period">Period</label><span class="value" data-value-for="sl-period"></span></div>
+            <input type="range" id="sl-period" min="0.5" max="8" step="0.25" value="2.5" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">PID controller <span class="hint" id="gain-units">V/rad</span></div>
+          <div class="preset-row" id="presets">
+            <button class="btn" data-preset="sluggish">Sluggish</button>
+            <button class="btn" data-preset="balanced">Balanced</button>
+            <button class="btn" data-preset="aggressive">Aggressive</button>
+            <button class="btn" data-preset="oscillatory">Oscillatory</button>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-kp">K<sub>p</sub> proportional</label><span class="value" data-value-for="sl-kp"></span></div>
+            <input type="range" id="sl-kp" min="0" max="1000" step="1" value="500" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-ki">K<sub>i</sub> integral</label><span class="value" data-value-for="sl-ki"></span></div>
+            <input type="range" id="sl-ki" min="0" max="1000" step="1" value="500" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-kd">K<sub>d</sub> derivative</label><span class="value" data-value-for="sl-kd"></span></div>
+            <input type="range" id="sl-kd" min="0" max="1000" step="1" value="500" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-fc">Derivative filter cutoff</label><span class="value" data-value-for="sl-fc"></span></div>
+            <input type="range" id="sl-fc" min="10" max="500" step="5" value="40" />
+          </div>
+          <div class="field">
+            <div class="field-row"><span class="label">Controller sample rate</span></div>
+            <div class="seg" id="seg-rate">
+              <button data-value="50">50 Hz</button>
+              <button data-value="200">200 Hz</button>
+              <button data-value="1000" class="active">1 kHz</button>
+              <button data-value="4000">4 kHz</button>
+            </div>
+          </div>
+          <label class="switch">Anti-windup (conditional integration)<input type="checkbox" id="tg-aw" checked /><span class="track"></span></label>
+          <label class="switch">Derivative on measurement<input type="checkbox" id="tg-dom" checked /><span class="track"></span></label>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Auto-tune</div>
+          <div class="field">
+            <select id="sel-tune" aria-label="Auto-tune method"></select>
+          </div>
+          <button class="btn block" id="btn-tune"><i data-icon="sparkle"></i>Run auto-tune experiment</button>
+          <div class="tune-result" id="tune-result"></div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Plant &amp; sensor</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-inertia">Load inertia J</label><span class="value" data-value-for="sl-inertia"></span></div>
+            <input type="range" id="sl-inertia" min="-2" max="2" step="0.1" value="0" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-coulomb">Coulomb friction</label><span class="value" data-value-for="sl-coulomb"></span></div>
+            <input type="range" id="sl-coulomb" min="0" max="0.6" step="0.01" value="0.02" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-vmax">Supply voltage</label><span class="value" data-value-for="sl-vmax"></span></div>
+            <input type="range" id="sl-vmax" min="6" max="48" step="1" value="24" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sel-cpr">Encoder resolution</label></div>
+            <select id="sel-cpr">
+              <option value="64">64 counts/rev (coarse)</option>
+              <option value="256">256 counts/rev</option>
+              <option value="1024">1024 counts/rev</option>
+              <option value="4096">4096 counts/rev</option>
+              <option value="16384" selected>16384 counts/rev</option>
+              <option value="65536">65536 counts/rev</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-noise">Sensor noise σ</label><span class="value" data-value-for="sl-noise"></span></div>
+            <input type="range" id="sl-noise" min="0" max="1" step="0.01" value="0" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Disturbance</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-load">Load torque</label><span class="value" data-value-for="sl-load"></span></div>
+            <input type="range" id="sl-load" min="0" max="4" step="0.1" value="1.5" />
+          </div>
+          <label class="switch">Apply constant load torque<input type="checkbox" id="tg-load" /><span class="track"></span></label>
+          <button class="btn block" id="btn-kick"><i data-icon="zap"></i>Impulse kick (50 ms)</button>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-servo">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Servo</div>
+              <div class="panel-sub" id="servo-sub">Output shaft · 20:1 gearbox · 16384 CPR encoder</div>
+            </div>
+            <div class="panel-body servo-body">
+              <div class="canvas-wrap"><canvas id="cv-dial" class="interactive" aria-label="Servo dial. Click to set the target angle."></canvas></div>
+              <div class="meters">
+                <div class="meter"><div class="top">Voltage</div><b id="m-u">0 V</b><div class="mbar" id="mb-u"><span></span></div></div>
+                <div class="meter"><div class="top">Current</div><b id="m-i">0 A</b><div class="mbar" id="mb-i"><span></span></div></div>
+                <div class="meter"><div class="top">Speed</div><b id="m-w">0 rpm</b><div class="mbar" id="mb-w"><span></span></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel p-resp">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Response</div>
+              <div class="seg no-dot" id="seg-view" style="padding:2px">
+                <button data-value="live" class="active">Live scope</button>
+                <button data-value="capture">Step capture</button>
+              </div>
+              <span class="tuning-banner" id="tuning-banner"><span class="pulse"></span><span id="tuning-text">Auto-tuning…</span></span>
+              <div class="spacer"></div>
+              <button class="btn sm" id="btn-pin" title="Overlay the latest step response for comparison"><i data-icon="pin"></i>Pin step</button>
+              <button class="btn sm ghost" id="btn-clear-pins">Clear</button>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-resp"></canvas></div></div>
+          </section>
+
+          <section class="panel p-metrics">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Step metrics</div>
+              <div class="panel-sub" id="metrics-sub">latest step</div>
+              <div class="spacer"></div>
+              <span class="chip good" id="stab-chip">Stable</span>
+            </div>
+            <div class="panel-body metrics-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Rise 10–90%</div><div class="v" id="st-rise">—</div></div>
+                <div class="stat"><div class="k">Overshoot</div><div class="v" id="st-os">—</div></div>
+                <div class="stat"><div class="k">Settling 2%</div><div class="v" id="st-settle">—</div></div>
+                <div class="stat"><div class="k">Final error</div><div class="v" id="st-sse">—</div></div>
+                <div class="stat"><div class="k">Peak current</div><div class="v" id="st-ipk">—</div></div>
+                <div class="stat"><div class="k">IAE</div><div class="v" id="st-iae">—</div></div>
+              </div>
+              <div class="health-title">Loop analysis <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">linearised, ZOH ≈ Ts/2 delay</span></div>
+              <div class="loop-health">
+                <div class="stat"><div class="k">Phase margin</div><div class="v" id="st-pm">—</div></div>
+                <div class="stat"><div class="k">Gain margin</div><div class="v" id="st-gm">—</div></div>
+                <div class="stat"><div class="k">Crossover ω<sub>c</sub></div><div class="v" id="st-wc">—</div></div>
+                <div class="stat"><div class="k">CL bandwidth</div><div class="v" id="st-bw">—</div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel p-analysis">
+            <div class="panel-head">
+              <div class="seg no-dot" id="seg-tab" style="padding:2px">
+                <button data-value="drive" class="active">Drive</button>
+                <button data-value="terms">PID terms</button>
+                <button data-value="bode">Bode</button>
+                <button data-value="poles">Poles</button>
+              </div>
+              <div class="spacer"></div>
+              <div class="legend" id="tab-legend"></div>
+            </div>
+            <div class="panel-body">
+              <div class="tab-pane active" data-tab="drive">
+                <div class="split">
+                  <div class="canvas-wrap"><canvas id="cv-u"></canvas></div>
+                  <div class="canvas-wrap"><canvas id="cv-i"></canvas></div>
+                </div>
+              </div>
+              <div class="tab-pane" data-tab="terms"><div class="canvas-wrap"><canvas id="cv-terms"></canvas></div></div>
+              <div class="tab-pane" data-tab="bode">
+                <div class="split">
+                  <div class="canvas-wrap"><canvas id="cv-mag"></canvas></div>
+                  <div class="canvas-wrap"><canvas id="cv-ph"></canvas></div>
+                </div>
+                <div class="tf-line" id="tf-line"></div>
+              </div>
+              <div class="tab-pane" data-tab="poles"><div class="canvas-wrap"><canvas id="cv-poles"></canvas></div></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How MotorLab works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>MotorLab simulates a <strong>geared permanent-magnet DC servo</strong> in real time and closes a digital PID loop around it —
+        the same architecture found in robot joints, 3-D printer axes, gimbals and electric actuators.</p>
+      <h3>1 · Plant model</h3>
+      <p>Electrical and mechanical dynamics are integrated with 4th-order Runge–Kutta at 20 kHz (all values referred to the output shaft):</p>
+      <div class="eq">L·di/dt = V − R·i − K·ω
+J·dω/dt = K·i − b·ω − τc·tanh(ω/ωs) − τload
+dθ/dt   = ω</div>
+      <p>Defaults: R = 2 Ω, L = 5 mH, K = 0.5 N·m/A, J = 0.05 kg·m², b = 0.01 N·m·s. The mechanical time constant is
+        τm = J·R/(K² + R·b) ≈ 0.37 s and the electrical one L/R = 2.5 ms. The supply voltage saturates the drive.</p>
+      <h3>2 · Digital PID</h3>
+      <div class="eq">u[k] = Kp·e[k] + I[k] + D[k]
+I[k] = I[k−1] + Ki·Ts·e[k]          (frozen while saturated)
+D[k] = a·D[k−1] − (1−a)·Kd·(y[k]−y[k−1])/Ts,  a = Tf/(Tf+Ts)</div>
+      <ul>
+        <li><strong>Derivative on measurement</strong> avoids the “derivative kick” on setpoint steps.</li>
+        <li><strong>First-order derivative filter</strong> (cut-off f<sub>c</sub>, Tf = 1/2πf<sub>c</sub>) limits noise amplification.</li>
+        <li><strong>Conditional-integration anti-windup</strong> stops the integrator from charging while the output is clipped.</li>
+        <li>The encoder quantises the angle (counts/rev) and optional Gaussian noise is added — try 64 CPR with a large K<sub>d</sub>.</li>
+      </ul>
+      <h3>3 · Step metrics</h3>
+      <p>Every setpoint step is captured and normalised: rise time (10→90 %), percentage overshoot, 2 % settling time,
+        steady-state error and IAE = ∫|e|dt. <strong>Pin</strong> a response to compare tunings side by side.</p>
+      <h3>4 · Loop analysis</h3>
+      <p>The loop transfer function uses the linearised plant and the continuous PID, with the zero-order-hold approximated as a half-sample delay:</p>
+      <div class="eq">P(s) = K / ( s · [(J s + b)(L s + R) + K²] )      (position)
+C(s) = Kp + Ki/s + Kd·s/(Tf·s + 1)
+L(jω) = C(jω)·P(jω)·e^(−jω·Ts/2)</div>
+      <p>Phase margin, gain margin, crossover frequency and closed-loop bandwidth are read from the Bode plot; the
+        <strong>Poles</strong> tab solves 1 + C·P·Padé(s) = 0 with a scaled Durand–Kerner root finder.</p>
+      <h3>5 · Auto-tuning</h3>
+      <ul>
+        <li><strong>Relay feedback (Åström–Hägglund):</strong> a relay ±d forces a limit cycle; its amplitude a and period T<sub>u</sub> give the ultimate gain K<sub>u</sub> = 4d/(π√(a²−ε²)). Classic rules (Ziegler–Nichols, Tyreus–Luyben, …) map (K<sub>u</sub>, T<sub>u</sub>) to PID gains.</li>
+        <li><strong>Bump test + model-based design:</strong> an open-loop voltage step identifies a first-order-plus-dead-time model (28 % / 63 % method). Position loops get a PD+I pole placement (ζ = 0.8); velocity loops get SIMC PI tuning (Skogestad).</li>
+      </ul>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Apply a load torque with a PD controller (K<sub>i</sub> = 0): note the steady-state error, then add integral action.</li>
+        <li>Drop the sample rate to 50 Hz and watch the phase margin shrink.</li>
+        <li>Turn anti-windup off and command a large step — the integrator winds up and overshoot explodes.</li>
+        <li>Quadruple the inertia and re-run the auto-tuner.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="motor-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
