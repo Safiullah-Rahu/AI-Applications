@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NeuroPlayground — Neural Networks from Scratch</title>
+  <meta name="description" content="Train a neural network in your browser — hand-written backpropagation, five activations, three optimisers, live neuron activation maps, decision boundaries and gradient-flow diagnostics." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='5' cy='7' r='2.2' fill='%23f472b6'/%3E%3Ccircle cx='5' cy='17' r='2.2' fill='%23f472b6'/%3E%3Ccircle cx='12' cy='5' r='2.2' fill='%23818cf8'/%3E%3Ccircle cx='12' cy='12' r='2.2' fill='%23818cf8'/%3E%3Ccircle cx='12' cy='19' r='2.2' fill='%23818cf8'/%3E%3Ccircle cx='19' cy='12' r='2.4' fill='%23f472b6'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid;
+      height: 100%;
+      min-height: 660px;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1.42fr) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1.25fr) minmax(0, 0.8fr);
+      grid-template-areas: 'net output' 'loss grad';
+    }
+    .p-net { grid-area: net; }
+    .p-output { grid-area: output; }
+    .p-loss { grid-area: loss; }
+    .p-grad { grid-area: grad; }
+    .ds-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+    .ds { position: relative; border: 1px solid var(--border-2); border-radius: 9px; overflow: hidden; cursor: pointer; background: var(--inset); padding: 0; aspect-ratio: 1; }
+    .ds canvas { width: 100%; height: 100%; display: block; }
+    .ds span { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10px; text-align: center; background: rgba(6,10,20,.75); color: var(--text-2); padding: 2px 0; }
+    .ds.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .ds.active span { color: var(--text); }
+    .feat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .feat-chips button { font: inherit; font-size: 12.5px; font-weight: 550; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--inset); color: var(--muted); cursor: pointer; }
+    .feat-chips button.on { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
+    .layer-ctrl { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translateX(-50%); pointer-events: auto; }
+    .layer-ctrl .row { display: flex; gap: 4px; }
+    .layer-ctrl button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border-2); background: var(--panel-3); color: var(--text); cursor: pointer; font: 600 13px/1 var(--font-sans); padding: 0; }
+    .layer-ctrl button:hover { border-color: var(--accent); }
+    .layer-ctrl small { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+    .grad-body { display: flex; flex-direction: column; }
+    .grad-body .stats { padding: 10px 12px 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .grad-body .stat { padding: 6px 9px; }
+    .grad-body .stat .v { font-size: 15px; }
+    .grad-body .canvas-wrap { flex: 1; }
+    .preset-list { display: flex; flex-direction: column; gap: 6px; }
+    .preset-list .btn { justify-content: flex-start; font-size: 12px; }
+    .hidden { display: none !important; }
+    @media (max-width: 1100px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'output' 'net' 'loss' 'grad'; height: auto; }
+      .p-output { height: 420px; }
+      .p-net { height: 420px; }
+      .p-loss, .p-grad { height: 300px; }
+    }
+  </style>
+</head>
+<body data-domain="ai">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="7" r="2"/><circle cx="5" cy="17" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 7l3-2M7 7l3 5M7 17l3-5M7 17l3 2M14 5l3 6M14 12h3M14 19l3-6"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Neuro<span class="accent">Playground</span></div>
+          <div class="brand-sub">Neural networks from scratch — backpropagation, optimisers, activation maps &amp; gradient flow</div>
+        </div>
+      </div>
+      <span class="chip">Artificial Intelligence</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/GPT-Applications/tree/main/ai/neural-network-playground" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Training <span class="hint"><kbd>Space</kbd> run · <kbd>S</kbd> step</span></div>
+          <div class="btn-row">
+            <button class="btn primary" id="btn-play"><i data-icon="pause"></i><span>Pause</span></button>
+            <button class="btn" id="btn-step"><i data-icon="step"></i>Step</button>
+            <button class="btn" id="btn-reset" title="Re-initialise weights"><i data-icon="reset"></i></button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <div class="field-row"><label for="sl-speed">Epochs per frame</label><span class="value" data-value-for="sl-speed"></span></div>
+            <input type="range" id="sl-speed" min="1" max="10" step="1" value="2" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Data</div>
+          <div class="ds-grid" id="ds-grid"></div>
+          <div class="field" style="margin-top:12px">
+            <div class="field-row"><label for="sl-noise">Noise</label><span class="value" data-value-for="sl-noise"></span></div>
+            <input type="range" id="sl-noise" min="0" max="0.6" step="0.05" value="0.1" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-n">Points</label><span class="value" data-value-for="sl-n"></span></div>
+            <input type="range" id="sl-n" min="60" max="600" step="20" value="300" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-ratio">Training share</label><span class="value" data-value-for="sl-ratio"></span></div>
+            <input type="range" id="sl-ratio" min="0.2" max="0.9" step="0.05" value="0.6" />
+          </div>
+          <div class="help" id="draw-help" style="font-size:11.5px;color:var(--muted)"></div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Input features</div>
+          <div class="feat-chips" id="feat-chips"></div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Hyper-parameters</div>
+          <div class="field">
+            <div class="field-row"><span class="label">Activation</span></div>
+            <div class="seg" id="seg-act">
+              <button data-value="relu">ReLU</button>
+              <button data-value="leaky">Leaky</button>
+              <button data-value="tanh" class="active">tanh</button>
+              <button data-value="sigmoid">σ</button>
+              <button data-value="gelu">GELU</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><span class="label">Optimiser</span></div>
+            <div class="seg" id="seg-opt">
+              <button data-value="sgd">SGD</button>
+              <button data-value="momentum">Momentum</button>
+              <button data-value="adam" class="active">Adam</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-lr">Learning rate</label><span class="value" data-value-for="sl-lr"></span></div>
+            <input type="range" id="sl-lr" min="-4" max="0" step="0.05" value="-1.9" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-batch">Batch size</label><span class="value" data-value-for="sl-batch"></span></div>
+            <input type="range" id="sl-batch" min="1" max="64" step="1" value="16" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-l2">L2 regularisation</label><span class="value" data-value-for="sl-l2"></span></div>
+            <input type="range" id="sl-l2" min="-6" max="-1" step="0.25" value="-6" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Experiments</div>
+          <div class="preset-list">
+            <button class="btn" data-preset="vanish">Vanishing gradients: deep σ + SGD</button>
+            <button class="btn" data-preset="features">Feature engineering beats depth</button>
+            <button class="btn" data-preset="overfit">Overfitting: big net, few noisy points</button>
+            <button class="btn" data-preset="spiral">Spiral: deep GELU network</button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-net">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Network</div>
+              <div class="panel-sub" id="net-sub"></div>
+              <div class="spacer"></div>
+              <button class="btn sm" id="btn-add-layer">+ layer</button>
+              <button class="btn sm" id="btn-rm-layer">− layer</button>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap" id="net-wrap"><canvas id="cv-net"></canvas></div></div>
+          </section>
+
+          <section class="panel p-output">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Decision boundary</div>
+              <div class="panel-sub" id="out-sub"></div>
+              <div class="spacer"></div>
+              <label class="switch" style="margin:0;gap:6px;white-space:nowrap">Test data<input type="checkbox" id="tg-test" checked /><span class="track"></span></label>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-out" class="interactive"></canvas>
+              <div class="overlay-label tl" id="out-hover" style="display:none"></div>
+            </div></div>
+          </section>
+
+          <section class="panel p-loss">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Loss</div>
+              <div class="spacer"></div>
+              <div class="legend"><span><i style="background:#f472b6"></i>train</span><span><i style="background:#818cf8"></i>test</span></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-loss"></canvas></div></div>
+          </section>
+
+          <section class="panel p-grad">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Gradient flow</div>
+              <div class="spacer"></div>
+              <div class="legend" id="grad-legend"></div>
+            </div>
+            <div class="panel-body grad-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Epoch</div><div class="v" id="st-epoch">0</div></div>
+                <div class="stat"><div class="k">Train acc</div><div class="v" id="st-train">—</div></div>
+                <div class="stat"><div class="k">Test acc</div><div class="v" id="st-test">—</div></div>
+              </div>
+              <div class="canvas-wrap"><canvas id="cv-grad"></canvas></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How NeuroPlayground works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>Everything here — the network, back-propagation, optimisers and visualisations — is ~400 lines of plain JavaScript,
+        with gradients verified against finite differences.</p>
+      <h3>Model</h3>
+      <div class="eq">a⁽⁰⁾ = features(x₁, x₂)
+z⁽ˡ⁾ = W⁽ˡ⁾ a⁽ˡ⁻¹⁾ + b⁽ˡ⁾,   a⁽ˡ⁾ = φ(z⁽ˡ⁾)
+ŷ = σ(z⁽ᴸ⁾),   L = −[y log ŷ + (1 − y) log(1 − ŷ)] + (λ/2)‖W‖²</div>
+      <p>Hidden activations φ: ReLU, Leaky ReLU, tanh, sigmoid or GELU, with He / Xavier initialisation to match.</p>
+      <h3>Back-propagation</h3>
+      <div class="eq">δ⁽ᴸ⁾ = ŷ − y
+δ⁽ˡ⁾ = (W⁽ˡ⁺¹⁾ᵀ δ⁽ˡ⁺¹⁾) ⊙ φ′(z⁽ˡ⁾)
+∂L/∂W⁽ˡ⁾ = δ⁽ˡ⁾ a⁽ˡ⁻¹⁾ᵀ</div>
+      <h3>Optimisers</h3>
+      <ul>
+        <li><strong>SGD</strong>: w ← w − η g</li>
+        <li><strong>Momentum</strong>: v ← 0.9 v − η g, w ← w + v</li>
+        <li><strong>Adam</strong>: bias-corrected first/second moment estimates, w ← w − η m̂ / (√v̂ + ε)</li>
+      </ul>
+      <h3>Visualisations</h3>
+      <ul>
+        <li>Every neuron shows its activation over the input square; edges are coloured by weight sign and thickness by magnitude.</li>
+        <li>The decision boundary plots ŷ(x₁, x₂); filled dots are training points, ringed dots are held-out test points.</li>
+        <li><strong>Gradient flow</strong> plots the RMS gradient of each weight layer per epoch on a log scale. With deep sigmoid
+          networks the early layers’ gradients collapse by orders of magnitude — the vanishing-gradient problem that ReLU,
+          careful initialisation and adaptive optimisers mitigate.</li>
+      </ul>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Solve the spiral with only x₁, x₂ — then add sin features and remove layers.</li>
+        <li>Pick the “Draw” dataset and click to create your own problem (<kbd>Shift</kbd>+click for orange).</li>
+        <li>Compare SGD and Adam on the same network and seed with <strong>Reset</strong>.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="nn-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
