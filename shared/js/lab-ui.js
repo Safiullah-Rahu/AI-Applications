@@ -619,9 +619,9 @@
         if (hl.label) {
           ctx.font = `10px ${T.mono}`;
           ctx.fillStyle = hl.color || T.muted;
-          ctx.textAlign = 'left';
+          ctx.textAlign = hl.align === 'right' ? 'right' : 'left';
           ctx.textBaseline = 'bottom';
-          ctx.fillText(hl.label, r.x + 6, py - 2);
+          ctx.fillText(hl.label, hl.align === 'right' ? r.x + r.w - 6 : r.x + 6, py - 2);
         }
       }
       for (const vl of this.vlines) {
@@ -744,6 +744,18 @@
       ctx.lineJoin = 'round';
       ctx.globalAlpha = s.alpha ?? 1;
       ctx.setLineDash(s.dash || []);
+      if (s.area && !ring && d.lo) {
+        // filled band between data.lo (lower) and data.y (upper)
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) (i ? ctx.lineTo : ctx.moveTo).call(ctx, X(gx(i)), Y(gy(i)));
+        for (let i = n - 1; i >= 0; i--) ctx.lineTo(X(gx(i)), Y(d.lo[i]));
+        ctx.closePath();
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = s.alpha ?? 0.2;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        return;
+      }
       if (s.points) {
         ctx.fillStyle = s.color;
         for (let i = 0; i < n; i++) {
