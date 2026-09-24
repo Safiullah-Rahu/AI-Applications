@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TomoLab — CT Reconstruction Lab</title>
+  <meta name="description" content="Simulate a CT scanner in the browser: analytic phantoms, sinograms, Poisson dose noise, artefacts, filtered back-projection and iterative SART / SART-TV reconstruction." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='none' stroke='%232dd4bf' stroke-width='2.4'/%3E%3Cellipse cx='12' cy='12' rx='4' ry='5.5' fill='%232dd4bf'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid;
+      height: 100%;
+      min-height: 700px;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: minmax(0, 1.06fr) minmax(0, 1fr);
+      grid-template-areas: 'phantom sino recon' 'error analysis analysis';
+    }
+    .p-phantom { grid-area: phantom; }
+    .p-sino { grid-area: sino; }
+    .p-recon { grid-area: recon; }
+    .p-error { grid-area: error; }
+    .p-analysis { grid-area: analysis; }
+    .analysis-body { display: flex; flex-direction: column; }
+    .analysis-body .stats { padding: 10px 12px 0; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .analysis-body .stat .v { font-size: 16px; }
+    .analysis-body .canvas-wrap { flex: 1; }
+    .progress { position: absolute; left: 12px; right: 12px; bottom: 10px; height: 5px; border-radius: 5px; background: rgba(6,10,20,.7); border: 1px solid var(--border); overflow: hidden; opacity: 0; transition: opacity .2s; }
+    .progress.on { opacity: 1; }
+    .progress > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .colorbar { width: 90px; height: 8px; border-radius: 4px; border: 1px solid var(--border-2); }
+    .cb-wrap { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+    .file-btn { position: relative; overflow: hidden; }
+    .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .hu-readout { font-family: var(--font-mono); }
+    .sino-toggle { position: absolute; top: 14px; right: 24px; padding: 2px; flex-wrap: nowrap; background: rgba(6,10,20,.8); }
+    .sino-toggle button { padding: 4px 9px; font-size: 11.5px; }
+    .method-note { font-size: 11.5px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+    .only-fbp, .only-sart, .only-tv { }
+    .hidden { display: none !important; }
+    @media (max-width: 860px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'phantom' 'sino' 'recon' 'error' 'analysis'; height: auto; }
+      .p-phantom, .p-sino, .p-recon, .p-error { height: 380px; }
+      .p-analysis { height: 420px; }
+    }
+  </style>
+</head>
+<body data-domain="medical">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Tomo<span class="accent">Lab</span></div>
+          <div class="brand-sub">CT scanner simulator — projections, dose, artefacts, filtered back-projection &amp; iterative reconstruction</div>
+        </div>
+      </div>
+      <span class="chip">Medical Imaging</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/GPT-Applications/tree/main/medical-imaging/ct-reconstruction-lab" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Phantom</div>
+          <div class="field">
+            <select id="sel-phantom" aria-label="Phantom">
+              <option value="thorax">Thorax (chest CT)</option>
+              <option value="shepplogan">Shepp–Logan head</option>
+              <option value="hip">Pelvis with metal hip implants</option>
+              <option value="bars">Resolution &amp; low-contrast test</option>
+              <option value="custom" disabled>Uploaded image</option>
+            </select>
+          </div>
+          <label class="btn block file-btn"><i data-icon="upload"></i>Upload your own image<input type="file" id="file" accept="image/*" /></label>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Acquisition</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-views">Projections (views)</label><span class="value" data-value-for="sl-views"></span></div>
+            <input type="range" id="sl-views" min="8" max="360" step="1" value="180" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-range">Angular coverage</label><span class="value" data-value-for="sl-range"></span></div>
+            <input type="range" id="sl-range" min="45" max="180" step="5" value="180" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-dose">Dose I₀ (photons / ray)</label><span class="value" data-value-for="sl-dose"></span></div>
+            <input type="range" id="sl-dose" min="2.5" max="7" step="0.1" value="5" />
+          </div>
+          <label class="switch">Noiseless (infinite dose)<input type="checkbox" id="tg-noiseless" /><span class="track"></span></label>
+          <label class="switch">Miscalibrated detectors (rings)<input type="checkbox" id="tg-rings" /><span class="track"></span></label>
+          <label class="switch">Patient motion mid-scan<input type="checkbox" id="tg-motion" /><span class="track"></span></label>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Reconstruction</div>
+          <div class="field">
+            <div class="seg" id="seg-method">
+              <button data-value="bp">BP</button>
+              <button data-value="fbp" class="active">FBP</button>
+              <button data-value="sart">SART</button>
+              <button data-value="sarttv">SART-TV</button>
+            </div>
+            <div class="method-note" id="method-note"></div>
+          </div>
+          <div class="field only-fbp">
+            <div class="field-row"><label for="sel-filter">Reconstruction filter</label></div>
+            <select id="sel-filter">
+              <option value="ramlak">Ram-Lak (pure ramp)</option>
+              <option value="shepplogan" selected>Shepp–Logan</option>
+              <option value="cosine">Cosine</option>
+              <option value="hamming">Hamming</option>
+              <option value="hann">Hann (smooth)</option>
+            </select>
+          </div>
+          <div class="field only-fbp">
+            <div class="field-row"><label for="sl-cutoff">Filter cut-off (× Nyquist)</label><span class="value" data-value-for="sl-cutoff"></span></div>
+            <input type="range" id="sl-cutoff" min="0.2" max="1" step="0.05" value="1" />
+          </div>
+          <div class="field only-sart hidden">
+            <div class="field-row"><label for="sl-iters">Iterations</label><span class="value" data-value-for="sl-iters"></span></div>
+            <input type="range" id="sl-iters" min="1" max="40" step="1" value="15" />
+          </div>
+          <div class="field only-sart hidden">
+            <div class="field-row"><label for="sl-lambda">Relaxation λ</label><span class="value" data-value-for="sl-lambda"></span></div>
+            <input type="range" id="sl-lambda" min="0.1" max="1.5" step="0.05" value="0.9" />
+          </div>
+          <div class="field only-tv hidden">
+            <div class="field-row"><label for="sl-tv">TV regularisation</label><span class="value" data-value-for="sl-tv"></span></div>
+            <input type="range" id="sl-tv" min="0.05" max="1" step="0.05" value="0.35" />
+          </div>
+          <label class="switch">Animate back-projection<input type="checkbox" id="tg-animate" checked /><span class="track"></span></label>
+          <button class="btn primary block" id="btn-recon" style="margin-top:6px"><i data-icon="play"></i>Reconstruct</button>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Display window</div>
+          <div class="field">
+            <div class="seg" id="seg-window">
+              <button data-value="400,40" class="active">Soft</button>
+              <button data-value="1500,-600">Lung</button>
+              <button data-value="1800,400">Bone</button>
+              <button data-value="100,30">Brain</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-ww">Width W</label><span class="value" data-value-for="sl-ww"></span></div>
+            <input type="range" id="sl-ww" min="20" max="4000" step="10" value="400" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-wl">Level L</label><span class="value" data-value-for="sl-wl"></span></div>
+            <input type="range" id="sl-wl" min="-1000" max="1500" step="5" value="40" />
+          </div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-phantom">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Phantom</div>
+              <div class="panel-sub" id="phantom-sub">ground truth · 256² · 1 mm pixels</div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-phantom" class="interactive"></canvas>
+              <div class="overlay-label tl mono" id="wl-label"></div>
+              <div class="overlay-label br hu-readout" id="hu-phantom" style="display:none"></div>
+            </div></div>
+          </section>
+
+          <section class="panel p-sino">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Sinogram</div>
+              <div class="panel-sub" id="sino-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-sino"></canvas>
+              <div class="seg no-dot sino-toggle" id="seg-sino">
+                <button data-value="raw" class="active">Raw</button>
+                <button data-value="filtered">Filtered</button>
+              </div>
+            </div></div>
+          </section>
+
+          <section class="panel p-recon">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Reconstruction</div>
+              <div class="panel-sub" id="recon-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-recon" class="interactive"></canvas>
+              <div class="overlay-label br hu-readout" id="hu-recon" style="display:none"></div>
+              <div class="progress" id="progress"><span></span></div>
+            </div></div>
+          </section>
+
+          <section class="panel p-error">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Error map</div>
+              <div class="spacer"></div>
+              <div class="cb-wrap"><span id="cb-lo"></span><div class="colorbar" id="colorbar"></div><span id="cb-hi"></span></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-error" class="interactive"></canvas></div></div>
+          </section>
+
+          <section class="panel p-analysis">
+            <div class="panel-head">
+              <div class="seg no-dot" id="seg-tab" style="padding:2px">
+                <button data-value="profile" class="active">Line profile</button>
+                <button data-value="filter">Filter response</button>
+                <button data-value="conv">Convergence</button>
+              </div>
+              <div class="spacer"></div>
+              <div class="legend" id="tab-legend"></div>
+            </div>
+            <div class="panel-body analysis-body">
+              <div class="stats">
+                <div class="stat"><div class="k">RMSE</div><div class="v" id="st-rmse">—</div></div>
+                <div class="stat"><div class="k">PSNR</div><div class="v" id="st-psnr">—</div></div>
+                <div class="stat"><div class="k">SSIM</div><div class="v" id="st-ssim">—</div></div>
+                <div class="stat"><div class="k">Recon time</div><div class="v" id="st-time">—</div></div>
+              </div>
+              <div class="canvas-wrap"><canvas id="cv-analysis"></canvas></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How TomoLab works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>TomoLab reproduces the full imaging chain of a (parallel-beam) CT scanner: object → X-ray projections → noisy
+        measurements → reconstruction → image-quality assessment.</p>
+      <h3>1 · Phantoms &amp; exact projections</h3>
+      <p>Phantoms are built from ellipses and rectangles with attenuation values relative to water
+        (<code>HU = 1000·(μ/μ<sub>water</sub> − 1)</code>, μ<sub>water</sub> = 0.19 cm⁻¹). Their Radon transform is computed
+        <strong>analytically</strong> — e.g. the chord of an ellipse:</p>
+      <div class="eq">p(θ, t) = ρ · 2ab·√(a²(θ) − s²) / a²(θ)
+a²(θ) = a²cos²(θ−α) + b²sin²(θ−α),   s = t − (x₀cosθ + y₀sinθ)</div>
+      <p>so reconstructions are not flattered by the “inverse crime” of projecting the same pixel grid they are rebuilt on.
+        Uploaded images use a ray-driven bilinear projector instead.</p>
+      <h3>2 · Measurement physics</h3>
+      <div class="eq">N ~ Poisson(I₀ · e^(−p))        p̂ = −ln(N / I₀)</div>
+      <p>Lower dose (I₀) means fewer photons and noisier line integrals — especially behind dense objects such as metal
+        (<em>photon starvation</em> → streaks). Optional miscalibrated detector channels create <strong>ring artefacts</strong>;
+        rigid patient motion half-way through the scan creates inconsistent data and streaks.</p>
+      <h3>3 · Filtered back-projection</h3>
+      <div class="eq">f(x, y) = Δθ · Σₖ (pₖ ∗ h)(x cosθₖ + y sinθₖ)</div>
+      <p>The ramp filter <code>h</code> is built from its exact band-limited spatial kernel (Kak &amp; Slaney) and
+        apodised by a Shepp–Logan, cosine, Hamming or Hann window to trade resolution for noise. Plain <strong>BP</strong>
+        (no filter) shows the characteristic 1/r blur.</p>
+      <h3>4 · Iterative reconstruction</h3>
+      <p><strong>OS-SART</strong> repeatedly corrects the image with the back-projected, normalised residual of 10 ordered view subsets:</p>
+      <div class="eq">x ← x + λ · Cₛ⁻¹ Aₛᵀ Rₛ⁻¹ (pₛ − Aₛx),   x ≥ 0</div>
+      <p><strong>SART-TV</strong> interleaves gradient steps on total variation (ASD-POCS style), a compressed-sensing prior
+        that suppresses streaks when only a few views are available.</p>
+      <h3>5 · Image quality</h3>
+      <p>RMSE (HU), PSNR and SSIM are computed inside the circular field of view against the rasterised ground truth.</p>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Drop to 30 views: compare FBP streaks with SART-TV.</li>
+        <li>Lower the dose to 10³ and switch the filter from Ram-Lak to Hann.</li>
+        <li>Load the hip phantom — classic metal artefacts appear at clinical doses.</li>
+        <li>Restrict coverage to 120° for limited-angle artefacts.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="ct-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -307,6 +307,8 @@
     coolwarm: ['#3b4cc0','#4e68d8','#6282ea','#779af7','#8db0fe','#a3c2fe','#b9d0f9','#ccd9ed','#dddcdc','#ecd3c5','#f5c4ac','#f7b093','#f4987a','#eb7d62','#dd5f4b','#ca3b37','#b40426'],
     /** Dark-centred diverging map for two-class decision surfaces. */
     duo: ['#f59e0b', '#b86f10', '#5b3a12', '#0c1224', '#0e3a52', '#127aa8', '#38bdf8'],
+    /** Dark-centred diverging map (errors / signed quantities on dark UIs). */
+    diverge: ['#bae6fd', '#38bdf8', '#1d4ed8', '#172554', '#0b1020', '#450a0a', '#b91c1c', '#f87171', '#fecaca'],
     /** Phase map (cyclic). */
     twilight: ['#301437','#45135c','#592a8f','#5e51ad','#6276ba','#7297c1','#95b5c7','#c4ced4','#e2d9e2','#d8c7be','#cca389','#c27c63','#b25652','#983550','#741e4f','#4a1342','#2f1436'],
   };
