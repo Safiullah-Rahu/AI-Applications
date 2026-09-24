@@ -1,6 +1,6 @@
 # EvoDrive: Neuroevolution Self-Driving Cars
 
-**Artificial Intelligence** · [▶ Live demo](https://safiullah-rahu.github.io/GPT-Applications/ai/neuroevolution-cars/) · [← Portfolio](../../README.md)
+**Artificial Intelligence** · [▶ Live demo](https://safiullah-rahu.github.io/AI-Applications/ai/neuroevolution-cars/) · [← Portfolio](../../README.md)
 
 ![EvoDrive: a population of cars on a procedurally generated circuit, the leader's live neural network, fitness history and population ranking](../../screenshots/neuroevolution-cars.png)
 

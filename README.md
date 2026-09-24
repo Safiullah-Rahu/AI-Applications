@@ -7,10 +7,10 @@ and MRI scans, drive a smart wheelchair, control a prosthetic hand with muscle s
 back-propagation and by evolution. Every algorithm is implemented from scratch in plain JavaScript, with no frameworks, no
 numeric libraries and no build step, and each app's maths lives in a Node-tested core module.
 
-**▶ Live portfolio: [safiullah-rahu.github.io/GPT-Applications](https://safiullah-rahu.github.io/GPT-Applications/)**
+**▶ Live portfolio: [safiullah-rahu.github.io/AI-Applications](https://safiullah-rahu.github.io/AI-Applications/)**
 (served by GitHub Pages; see [deployment](#deploy-on-github-pages)). You can also open `index.html` locally.
 
-[![Portfolio hub page](screenshots/portfolio-hub.png)](https://safiullah-rahu.github.io/GPT-Applications/)
+[![Portfolio hub page](screenshots/portfolio-hub.png)](https://safiullah-rahu.github.io/AI-Applications/)
 
 | Domain | App | Highlights |
 |---|---|---|
@@ -110,8 +110,8 @@ brain view. You can test generalisation on new tracks, then race the champion yo
 ## Run locally
 
 ```bash
-git clone https://github.com/Safiullah-Rahu/GPT-Applications.git
-cd GPT-Applications
+git clone https://github.com/Safiullah-Rahu/AI-Applications.git
+cd AI-Applications
 # either open index.html directly in a browser, or serve the folder:
 python3 -m http.server 8000     # then visit http://localhost:8000
 ```
@@ -133,7 +133,7 @@ node tools/screenshots.js
 
 1. **Settings → Pages → Build and deployment → Deploy from a branch.**
 2. Choose branch `main` and folder `/ (root)`, then save.
-3. After a minute the portfolio is live at `https://safiullah-rahu.github.io/GPT-Applications/`.
+3. After a minute the portfolio is live at `https://safiullah-rahu.github.io/AI-Applications/`.
 
 The empty `.nojekyll` file tells Pages to serve the files as they are.
 

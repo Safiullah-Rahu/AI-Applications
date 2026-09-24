@@ -1,6 +1,6 @@
 # MyoHand: EMG Prosthetic Hand Controller
 
-**Assistive Robotics** · [▶ Live demo](https://safiullah-rahu.github.io/GPT-Applications/assistive-robotics/emg-prosthetic-hand/) · [← Portfolio](../../README.md)
+**Assistive Robotics** · [▶ Live demo](https://safiullah-rahu.github.io/AI-Applications/assistive-robotics/emg-prosthetic-hand/) · [← Portfolio](../../README.md)
 
 ![MyoHand: 8-channel surface EMG, armband, Hudgins features and the animated robotic hand](../../screenshots/emg-prosthetic-hand.png)
 

@@ -1,6 +1,6 @@
 # NeuroPlayground: Neural Networks from Scratch
 
-**Artificial Intelligence** · [▶ Live demo](https://safiullah-rahu.github.io/GPT-Applications/ai/neural-network-playground/) · [← Portfolio](../../README.md)
+**Artificial Intelligence** · [▶ Live demo](https://safiullah-rahu.github.io/AI-Applications/ai/neural-network-playground/) · [← Portfolio](../../README.md)
 
 ![NeuroPlayground: network with per-neuron activation maps, decision boundary on the spiral, loss and gradient flow](../../screenshots/neural-network-playground.png)
 

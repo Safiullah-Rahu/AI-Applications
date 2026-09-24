@@ -1,6 +1,6 @@
 # ArmStudio: Robot Arm Kinematics & C-Space Planner
 
-**Mechatronics** · [▶ Live demo](https://safiullah-rahu.github.io/GPT-Applications/mechatronics/robot-arm-studio/) · [← Portfolio](../../README.md)
+**Mechatronics** · [▶ Live demo](https://safiullah-rahu.github.io/AI-Applications/mechatronics/robot-arm-studio/) · [← Portfolio](../../README.md)
 
 ![ArmStudio: planar arm workspace with manipulability map, configuration-space obstacles and planned joint trajectories](../../screenshots/robot-arm-studio.png)
 

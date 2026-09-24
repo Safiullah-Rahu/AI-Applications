@@ -1,6 +1,6 @@
 # k-Space Explorer: MRI Physics & Reconstruction
 
-**Medical Imaging** · [▶ Live demo](https://safiullah-rahu.github.io/GPT-Applications/medical-imaging/mri-kspace-explorer/) · [← Portfolio](../../README.md)
+**Medical Imaging** · [▶ Live demo](https://safiullah-rahu.github.io/AI-Applications/medical-imaging/mri-kspace-explorer/) · [← Portfolio](../../README.md)
 
 ![k-Space Explorer: T2-weighted brain, variable-density k-space sampling and compressed-sensing reconstruction](../../screenshots/mri-kspace-explorer.png)
 

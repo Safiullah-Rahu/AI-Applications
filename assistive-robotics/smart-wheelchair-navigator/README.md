@@ -1,6 +1,6 @@
 # NaviChair: Smart Wheelchair Shared-Control Navigator
 
-**Assistive Robotics** · [▶ Live demo](https://safiullah-rahu.github.io/GPT-Applications/assistive-robotics/smart-wheelchair-navigator/) · [← Portfolio](../../README.md)
+**Assistive Robotics** · [▶ Live demo](https://safiullah-rahu.github.io/AI-Applications/assistive-robotics/smart-wheelchair-navigator/) · [← Portfolio](../../README.md)
 
 ![NaviChair: powered wheelchair with 360° LIDAR planning through an apartment, with DWA candidate arcs and telemetry](../../screenshots/smart-wheelchair-navigator.png)
 

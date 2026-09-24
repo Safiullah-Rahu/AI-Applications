@@ -1,6 +1,6 @@
 # MotorLab: PID Servo Tuning Studio
 
-**Mechatronics** · [▶ Live demo](https://safiullah-rahu.github.io/GPT-Applications/mechatronics/pid-motor-lab/) · [← Portfolio](../../README.md)
+**Mechatronics** · [▶ Live demo](https://safiullah-rahu.github.io/AI-Applications/mechatronics/pid-motor-lab/) · [← Portfolio](../../README.md)
 
 ![MotorLab: servo dial, step-response capture with pinned comparisons, live metrics and PID term breakdown](../../screenshots/pid-motor-lab.png)
 

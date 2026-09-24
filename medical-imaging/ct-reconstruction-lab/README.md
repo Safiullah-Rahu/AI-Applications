@@ -1,6 +1,6 @@
 # TomoLab: CT Reconstruction Lab
 
-**Medical Imaging** · [▶ Live demo](https://safiullah-rahu.github.io/GPT-Applications/medical-imaging/ct-reconstruction-lab/) · [← Portfolio](../../README.md)
+**Medical Imaging** · [▶ Live demo](https://safiullah-rahu.github.io/AI-Applications/medical-imaging/ct-reconstruction-lab/) · [← Portfolio](../../README.md)
 
 ![TomoLab: thorax phantom, 30-view sinogram, SART-TV reconstruction, error map and convergence](../../screenshots/ct-reconstruction-lab.png)
 
