@@ -151,7 +151,7 @@
     const frac = calib.phase === 'rest' ? calib.t / 0.7 : calib.t / S.hold;
     Lab.$('#calib-bar').style.width = `${Math.min(1, frac) * 100}%`;
   }
-  let calibSeed = 1234; // first calibration is deterministic so the demo always starts the same way
+  let calibSeed = 11; // first calibration is deterministic so the demo always starts the same way
   function instantCalibrate() {
     const s2 = new E.EMGSimulator(calibSeed);
     calibSeed = 1000 + Math.floor(Math.random() * 100000);
