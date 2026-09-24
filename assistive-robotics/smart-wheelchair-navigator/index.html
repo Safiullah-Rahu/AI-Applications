@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NaviChair — Smart Wheelchair Shared-Control Navigator</title>
+  <meta name="description" content="Assistive robotics simulator: a smart powered wheelchair with LIDAR, cost-aware A* planning, a dynamic-window local planner, shared control with tremor filtering, and occupancy-grid mapping." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='9' cy='15' r='6' fill='none' stroke='%23a78bfa' stroke-width='2.2'/%3E%3Ccircle cx='12' cy='4' r='2' fill='%23a78bfa'/%3E%3Cpath d='M12 7v6h5l2 5' fill='none' stroke='%23a78bfa' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid;
+      height: 100%;
+      min-height: 680px;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) 336px;
+      grid-template-rows: minmax(0, 1.28fr) minmax(0, 1fr);
+      grid-template-areas: 'map drive' 'map tele';
+    }
+    .p-map { grid-area: map; }
+    .p-drive { grid-area: drive; }
+    .p-tele { grid-area: tele; }
+    .drive-body { padding: 12px; display: flex; flex-direction: column; gap: 11px; overflow: auto; }
+    .dest-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .dest-grid .btn { flex-direction: column; gap: 3px; padding: 7px 4px; font-size: 11.5px; }
+    .dest-grid .btn svg { width: 17px; height: 17px; }
+    .cmd-row { display: flex; gap: 6px; }
+    .cmd-row input { flex: 1; }
+    .cmd-reply { font-size: 11.5px; color: var(--text-2); min-height: 16px; }
+    .joy-row { display: grid; grid-template-columns: 132px 1fr; gap: 12px; align-items: center; }
+    .joy { position: relative; width: 132px; height: 132px; }
+    .joy canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+    .cmd-table { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-2); display: grid; grid-template-columns: auto 1fr 1fr; gap: 3px 8px; align-items: baseline; }
+    .cmd-table b { color: var(--text); font-weight: 600; }
+    .cmd-table .h { color: var(--muted); font-family: var(--font-sans); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
+    .tele-body { display: flex; flex-direction: column; }
+    .tele-body .stats { padding: 10px 12px 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .tele-body .stat { padding: 7px 9px; }
+    .tele-body .stat .v { font-size: 15px; }
+    .tele-body .stat .k { letter-spacing: .04em; }
+    .tele-body .canvas-wrap { flex: 1; }
+    .status-chip { margin-left: auto; }
+    .map-legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap; padding: 5px 9px; border-radius: 8px; background: rgba(6,10,20,.78); border: 1px solid var(--border); font-size: 11px; color: var(--text-2); }
+    .map-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .map-legend i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+    .hidden { display: none !important; }
+    @media (max-width: 1100px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'map' 'drive' 'tele'; height: auto; }
+      .p-map { height: 560px; }
+      .p-tele { height: 360px; }
+    }
+  </style>
+</head>
+<body data-domain="assistive">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="16" r="5"/><circle cx="12" cy="4" r="1.6"/><path d="M12 7v5h5l2.5 5M12 9h5"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Navi<span class="accent">Chair</span></div>
+          <div class="brand-sub">Smart wheelchair — LIDAR, A* + dynamic-window planning, shared control &amp; mapping</div>
+        </div>
+      </div>
+      <span class="chip">Assistive Robotics</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/GPT-Applications/tree/main/assistive-robotics/smart-wheelchair-navigator" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Environment</div>
+          <label class="switch">Pedestrians walking around<input type="checkbox" id="tg-people" checked /><span class="track"></span></label>
+          <label class="switch">Unknown map — build it with LIDAR<input type="checkbox" id="tg-slam" /><span class="track"></span></label>
+          <div class="field" style="margin-top:10px">
+            <div class="field-row"><span class="label">Edit the map</span></div>
+            <div class="seg" id="seg-edit">
+              <button data-value="off" class="active">Off</button>
+              <button data-value="draw">Draw walls</button>
+              <button data-value="erase">Erase</button>
+            </div>
+          </div>
+          <button class="btn block" id="btn-reset-map"><i data-icon="reset"></i>Reset map &amp; wheelchair</button>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Wheelchair</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-vmax">Max speed</label><span class="value" data-value-for="sl-vmax"></span></div>
+            <input type="range" id="sl-vmax" min="0.3" max="1.4" step="0.05" value="0.8" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-acc">Max acceleration</label><span class="value" data-value-for="sl-acc"></span></div>
+            <input type="range" id="sl-acc" min="0.3" max="2" step="0.1" value="0.8" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-comfort">Wall clearance preference</label><span class="value" data-value-for="sl-comfort"></span></div>
+            <input type="range" id="sl-comfort" min="0" max="12" step="0.5" value="6" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Assistance</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-share">Shared-control intent weight</label><span class="value" data-value-for="sl-share"></span></div>
+            <input type="range" id="sl-share" min="0.5" max="10" step="0.5" value="4" />
+          </div>
+          <label class="switch">Safety layer in manual mode<input type="checkbox" id="tg-safety" checked /><span class="track"></span></label>
+          <label class="switch">Simulate hand tremor on joystick<input type="checkbox" id="tg-tremor" /><span class="track"></span></label>
+          <div class="field">
+            <div class="field-row"><label for="sl-tremor">Tremor amplitude</label><span class="value" data-value-for="sl-tremor"></span></div>
+            <input type="range" id="sl-tremor" min="0.1" max="1" step="0.05" value="0.45" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">LIDAR</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-beams">Beams (360°)</label><span class="value" data-value-for="sl-beams"></span></div>
+            <input type="range" id="sl-beams" min="36" max="360" step="4" value="180" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-range">Max range</label><span class="value" data-value-for="sl-range"></span></div>
+            <input type="range" id="sl-range" min="2" max="10" step="0.5" value="6" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Layers</div>
+          <label class="switch">LIDAR rays<input type="checkbox" id="tg-lidar" checked /><span class="track"></span></label>
+          <label class="switch">Inflation costmap<input type="checkbox" id="tg-cost" checked /><span class="track"></span></label>
+          <label class="switch">DWA candidate trajectories<input type="checkbox" id="tg-dwa" checked /><span class="track"></span></label>
+          <label class="switch">A* explored cells<input type="checkbox" id="tg-explored" /><span class="track"></span></label>
+          <label class="switch">Trail<input type="checkbox" id="tg-trail" checked /><span class="track"></span></label>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-map">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Apartment</div>
+              <div class="panel-sub" id="map-sub">12 × 8 m · 5 cm occupancy grid</div>
+              <span class="chip status-chip" id="status-chip">Idle</span>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-map" class="interactive"></canvas>
+              <div class="map-legend">
+                <span><i style="background:#a78bfa"></i>global path</span>
+                <span><i style="background:#34d399"></i>executed arc</span><span><i style="background:#94a3b8"></i>DWA candidates</span>
+                <span><i style="background:#22d3ee"></i>LIDAR</span>
+                <span><i style="background:#fb923c"></i>pedestrian</span>
+              </div>
+            </div></div>
+          </section>
+
+          <section class="panel p-drive">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Drive</div>
+              <div class="spacer"></div>
+              <button class="btn sm danger" id="btn-stop">Stop</button>
+            </div>
+            <div class="panel-body drive-body">
+              <div class="seg" id="seg-mode">
+                <button data-value="manual">Manual</button>
+                <button data-value="shared">Shared</button>
+                <button data-value="auto" class="active">Autonomous</button>
+              </div>
+              <div class="dest-grid" id="dests"></div>
+              <div>
+                <div class="cmd-row">
+                  <input type="text" id="cmd" placeholder="Say or type: “take me to the kitchen”" aria-label="Natural-language command" />
+                  <button class="btn" id="btn-cmd">Go</button>
+                </div>
+                <div class="cmd-reply" id="cmd-reply"></div>
+              </div>
+              <div class="joy-row">
+                <div class="joy"><canvas id="cv-joy" aria-label="Virtual joystick"></canvas></div>
+                <div class="cmd-table">
+                  <span class="h"></span><span class="h">user</span><span class="h">executed</span>
+                  <span>v</span><b id="u-v">0.00</b><b id="e-v">0.00</b>
+                  <span>ω</span><b id="u-w">0.00</b><b id="e-w">0.00</b>
+                  <span class="muted" style="grid-column: 1 / -1; margin-top: 4px; font-family: var(--font-sans); font-size: 11px;">Drag the joystick or use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel p-tele">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Telemetry</div>
+              <div class="spacer"></div>
+              <div class="legend"><span><i style="background:#a78bfa"></i>speed</span><span><i style="background:#34d399"></i>clearance</span></div>
+            </div>
+            <div class="panel-body tele-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Speed</div><div class="v" id="st-speed">0.00<span class="u">m/s</span></div></div>
+                <div class="stat"><div class="k">Clearance</div><div class="v" id="st-clear">—</div></div>
+                <div class="stat"><div class="k">Distance</div><div class="v" id="st-dist">0.0<span class="u">m</span></div></div>
+                <div class="stat"><div class="k">Stops</div><div class="v" id="st-int">0</div></div>
+                <div class="stat"><div class="k">Assist</div><div class="v" id="st-assist">0<span class="u">%</span></div></div>
+                <div class="stat"><div class="k">Replans</div><div class="v" id="st-replan">0</div></div>
+              </div>
+              <div class="canvas-wrap"><canvas id="cv-tele"></canvas></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How NaviChair works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>NaviChair simulates a powered wheelchair with a 360° LIDAR driving through an apartment. It demonstrates the
+        navigation stack used by assistive mobility robots and the <strong>shared-control</strong> ideas that let users with limited
+        motor control drive safely.</p>
+      <h3>1 · Perception</h3>
+      <p>The LIDAR casts rays through a 5 cm occupancy grid (Amanatides–Woo traversal) and intersects moving pedestrians.
+        In <em>unknown-map</em> mode every scan updates a <strong>log-odds occupancy grid</strong>: cells along a beam become freer, the hit cell more occupied.</p>
+      <h3>2 · Costmap &amp; global planning</h3>
+      <p>An exact Euclidean <strong>distance transform</strong> (Felzenszwalb–Huttenlocher) gives the clearance of every cell. Cells closer than the
+        chair radius are lethal; beyond it an exponential penalty keeps the chair away from walls — smoother, more comfortable routes through doorways.</p>
+      <div class="eq">cost(d) = ∞                          if d &lt; r_robot
+cost(d) = 1 + w·exp(−(d − r)/0.35)     otherwise</div>
+      <p>8-connected <strong>A*</strong> finds the cheapest path, then line-of-sight smoothing removes grid zig-zags. The path is replanned when the map changes or it becomes blocked.</p>
+      <h3>3 · Local planning — Dynamic Window Approach</h3>
+      <p>Every 100 ms the planner samples (v, ω) pairs reachable within the acceleration limits, rolls each arc 1.8 s ahead and scores it:</p>
+      <div class="eq">J = w_goal·d_goal + w_head·|Δθ| + w_clear/clearance + w_speed·(v_max − v)  [+ w_user·‖u − u_user‖²]</div>
+      <p>Arcs that would hit a wall or a predicted pedestrian position before the chair can brake are discarded.</p>
+      <h3>4 · Control modes</h3>
+      <ul>
+        <li><strong>Manual</strong> — joystick commands go straight to the motors; an optional safety layer scales speed down when the commanded arc would collide.</li>
+        <li><strong>Shared</strong> — the DWA searches for the safe command <em>closest to the user’s intent</em>: the chair glides through doorways and around people while the user stays in charge. Turn on simulated tremor to see noisy input being filtered.</li>
+        <li><strong>Autonomous</strong> — pick a room or type a sentence (“I’m hungry, take me to the kitchen”); keywords map to destinations.</li>
+      </ul>
+      <h3>Metrics</h3>
+      <p><strong>Assistance</strong> is the relative difference between what the user asked for and what was executed — a common measure of how much a shared controller intervenes.</p>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="nav-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
