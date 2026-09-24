@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ArmStudio — Robot Arm Kinematics &amp; C-Space Planner</title>
+  <meta name="description" content="Interactive planar robot arm: forward/inverse kinematics, manipulability, configuration-space obstacles and collision-free A* motion planning." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 20h8M8 20v-4l5-7 5 3' fill='none' stroke='%23fbbf24' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='13' cy='9' r='2' fill='%23fbbf24'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid;
+      height: 100%;
+      min-height: 640px;
+      gap: 12px;
+      grid-template-columns: minmax(0, 1.42fr) minmax(360px, 1fr);
+      grid-template-rows: minmax(0, 1.18fr) minmax(0, 1fr);
+      grid-template-areas: 'work cspace' 'work joints';
+    }
+    .p-work { grid-area: work; }
+    .p-cspace { grid-area: cspace; }
+    .p-joints { grid-area: joints; }
+    .work-body { display: flex; flex-direction: column; }
+    .work-body .canvas-wrap { flex: 1; }
+    .work-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.5fr); gap: 8px; padding: 0 12px 12px; }
+    .work-stats .stat .k { letter-spacing: 0; text-transform: none; font-size: 11.5px; font-weight: 600; }
+    .work-stats .stat .v { font-size: 15px; }
+    .torque-bars { display: flex; flex-direction: column; gap: 4px; margin-top: 5px; }
+    .torque-bars .tb { display: grid; grid-template-columns: 18px 1fr 38px; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-2); text-align: right; }
+    .torque-bars .tb .bar { height: 6px; }
+    .split { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr 1fr; }
+    .cs-body .canvas-wrap { position: absolute; inset: 0; }
+    .obs-legend { display: flex; gap: 6px; flex-wrap: wrap; }
+    .obs-legend span { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+    .mode-help { font-size: 11.5px; color: var(--muted); margin-top: 7px; line-height: 1.5; }
+    .hidden { display: none !important; }
+    canvas.grab { cursor: grab; }
+    @media (max-width: 1250px) {
+      .work-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 860px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'work' 'cspace' 'joints'; height: auto; }
+      .p-work { height: 560px; }
+      .p-cspace { height: 380px; }
+      .p-joints { height: 320px; }
+    }
+  </style>
+</head>
+<body data-domain="mechatronics">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h9M7.5 21v-3.5l5-7.5 5.5 3"/><circle cx="12.5" cy="10" r="1.8"/><path d="M18 13l2.5-1.5M18 13l1 2.8"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Arm<span class="accent">Studio</span></div>
+          <div class="brand-sub">Robot arm kinematics, configuration space &amp; collision-free motion planning</div>
+        </div>
+      </div>
+      <span class="chip">Mechatronics</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/GPT-Applications/tree/main/mechatronics/robot-arm-studio" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Interaction</div>
+          <div class="seg" id="seg-mode">
+            <button data-value="plan" class="active">Plan</button>
+            <button data-value="ik">IK drag</button>
+            <button data-value="draw">Draw</button>
+            <button data-value="edit">Obstacles</button>
+          </div>
+          <div class="mode-help" id="mode-help"></div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Manipulator</div>
+          <div class="field">
+            <div class="seg" id="seg-dof">
+              <button data-value="2" class="active">2-link (2R)</button>
+              <button data-value="3">3-link (3R)</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-l1">Link 1 length</label><span class="value" data-value-for="sl-l1"></span></div>
+            <input type="range" id="sl-l1" min="0.4" max="1.3" step="0.05" value="1.0" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-l2">Link 2 length</label><span class="value" data-value-for="sl-l2"></span></div>
+            <input type="range" id="sl-l2" min="0.3" max="1.2" step="0.05" value="0.8" />
+          </div>
+          <div class="field only3 hidden">
+            <div class="field-row"><label for="sl-l3">Link 3 length</label><span class="value" data-value-for="sl-l3"></span></div>
+            <input type="range" id="sl-l3" min="0.2" max="0.8" step="0.05" value="0.45" />
+          </div>
+          <div class="field">
+            <div class="field-row"><span class="label">IK branch</span></div>
+            <div class="seg" id="seg-elbow">
+              <button data-value="-1" class="active">Elbow up</button>
+              <button data-value="1">Elbow down</button>
+            </div>
+          </div>
+          <label class="switch only3 hidden">Lock tool angle φ in IK drag<input type="checkbox" id="tg-lockphi" /><span class="track"></span></label>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Joint space <span class="hint">forward kinematics</span></div>
+          <div class="field">
+            <div class="field-row"><label for="sl-q1">θ₁ shoulder</label><span class="value" data-value-for="sl-q1"></span></div>
+            <input type="range" id="sl-q1" min="-180" max="180" step="0.5" value="60" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-q2">θ₂ elbow</label><span class="value" data-value-for="sl-q2"></span></div>
+            <input type="range" id="sl-q2" min="-165" max="165" step="0.5" value="-40" />
+          </div>
+          <div class="field only3 hidden">
+            <div class="field-row"><label for="sl-q3">θ₃ wrist</label><span class="value" data-value-for="sl-q3"></span></div>
+            <input type="range" id="sl-q3" min="-165" max="165" step="0.5" value="-20" />
+          </div>
+          <div class="btn-row">
+            <button class="btn" id="btn-home"><i data-icon="reset"></i>Plan to home</button>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Motion</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-speed">Max joint speed</label><span class="value" data-value-for="sl-speed"></span></div>
+            <input type="range" id="sl-speed" min="20" max="240" step="5" value="90" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-payload">Payload at tool</label><span class="value" data-value-for="sl-payload"></span></div>
+            <input type="range" id="sl-payload" min="0" max="5" step="0.1" value="1" />
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Obstacles <span class="obs-legend" id="obs-legend"></span></div>
+          <div class="grid-2" style="margin-bottom:8px">
+            <button class="btn sm" id="btn-add-circle">+ Circle</button>
+            <button class="btn sm" id="btn-add-box">+ Box</button>
+            <button class="btn sm" id="btn-shuffle"><i data-icon="shuffle"></i>Shuffle</button>
+            <button class="btn sm danger" id="btn-clear-obs"><i data-icon="trash"></i>Clear</button>
+          </div>
+          <label class="switch">Floor &amp; pedestal collisions<input type="checkbox" id="tg-floor" checked /><span class="track"></span></label>
+        </section>
+
+        <section class="section">
+          <div class="section-title">Display</div>
+          <label class="switch">Collision-free workspace map<input type="checkbox" id="tg-map" checked /><span class="track"></span></label>
+          <label class="switch">Manipulability ellipse<input type="checkbox" id="tg-ellipse" checked /><span class="track"></span></label>
+          <label class="switch">Joint frames<input type="checkbox" id="tg-frames" /><span class="track"></span></label>
+          <label class="switch">Ghost poses along plan<input type="checkbox" id="tg-ghosts" checked /><span class="track"></span></label>
+          <label class="switch">A* explored cells<input type="checkbox" id="tg-explored" checked /><span class="track"></span></label>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-work">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Workspace</div>
+              <div class="panel-sub" id="work-sub"></div>
+              <div class="spacer"></div>
+              <span class="chip good" id="coll-chip">Collision-free</span>
+            </div>
+            <div class="panel-body work-body">
+              <div class="canvas-wrap"><canvas id="cv-work" class="interactive"></canvas>
+                <div class="overlay-label bl" id="work-hint"></div>
+              </div>
+              <div class="work-stats">
+                <div class="stat"><div class="k">Tool x, y</div><div class="v" id="st-pos">—</div></div>
+                <div class="stat"><div class="k">Tool angle φ</div><div class="v" id="st-phi">—</div></div>
+                <div class="stat"><div class="k">Manipulability</div><div class="v" id="st-w">—</div></div>
+                <div class="stat"><div class="k">cond(J)</div><div class="v" id="st-cond">—</div></div>
+                <div class="stat"><div class="k">Holding torque (N·m)</div><div class="torque-bars" id="torques"></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel p-cspace">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Configuration space</div>
+              <div class="panel-sub" id="cs-sub"></div>
+              <div class="spacer"></div>
+            </div>
+            <div class="panel-body cs-body">
+              <div class="canvas-wrap"><canvas id="cv-cspace" class="interactive"></canvas></div>
+            </div>
+          </section>
+
+          <section class="panel p-joints">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Joint trajectories</div>
+              <div class="spacer"></div>
+              <div class="legend" id="joint-legend"></div>
+            </div>
+            <div class="panel-body">
+              <div class="split">
+                <div class="canvas-wrap"><canvas id="cv-q"></canvas></div>
+                <div class="canvas-wrap"><canvas id="cv-qd"></canvas></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How ArmStudio works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>ArmStudio models a planar serial manipulator (2R or 3R) mounted on a pedestal, and connects the three views a
+        robotics engineer reasons in: <strong>task space</strong>, <strong>joint space</strong> and <strong>configuration space</strong>.</p>
+      <h3>Forward kinematics</h3>
+      <div class="eq">x = x₀ + Σᵢ Lᵢ·cos(θ₁ + … + θᵢ)
+y = y₀ + Σᵢ Lᵢ·sin(θ₁ + … + θᵢ)        φ = θ₁ + … + θₙ</div>
+      <h3>Inverse kinematics</h3>
+      <p><strong>Closed form (2R):</strong> the law of cosines gives two branches (elbow up / down):</p>
+      <div class="eq">cos θ₂ = (dx² + dy² − L₁² − L₂²) / (2 L₁ L₂)
+θ₁ = atan2(dy, dx) − atan2(L₂ sin θ₂, L₁ + L₂ cos θ₂)</div>
+      <p>For 3R with a fixed tool angle φ the wrist point is solved first. With φ free the arm is <strong>redundant</strong>;
+        drag mode then uses <strong>damped least squares</strong>, which stays well-behaved near singularities:</p>
+      <div class="eq">Δθ = Jᵀ (J Jᵀ + λ² I)⁻¹ · e</div>
+      <h3>Manipulability &amp; statics</h3>
+      <p>Yoshikawa’s index <code>w = √det(J Jᵀ)</code> measures how freely the tool can move; its ellipse (drawn at the tool) is
+        the image of unit joint speeds. w → 0 at singularities (arm fully stretched or folded). The background map shows,
+        for every reachable point, the best collision-free w. Holding torques follow from <code>τ = Jᵀ F</code> summed over link weights and the payload.</p>
+      <h3>Configuration space</h3>
+      <p>Every arm pose is a single point (θ₁, θ₂). Each workspace obstacle is mapped — by exhaustive collision checking of the
+        link capsules — into a <strong>C-space obstacle</strong> drawn in the same colour. Moving a physical box reshapes its C-space
+        image in real time. For the 3R arm the view is a slice at the current θ₃.</p>
+      <h3>Motion planning</h3>
+      <ol>
+        <li>The goal pose is chosen among all IK solutions (both elbow branches and, for 3R, 72 tool angles) that are collision-free and closest to the current pose.</li>
+        <li><strong>A*</strong> searches an 8-connected 180×180 grid (2R) or a 26-connected 72³ lattice (3R) with lazy collision checks.</li>
+        <li>The cell path is <strong>shortcut-smoothed</strong> (straight joint-space segments verified every 1°).</li>
+        <li>A <strong>quintic time scaling</strong> s(τ) = 10τ³ − 15τ⁴ + 6τ⁵ gives zero velocity and acceleration at both ends.</li>
+      </ol>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Drag the dot in C-space straight into a coloured blob and watch the matching link turn red.</li>
+        <li>Stretch the arm fully in IK mode: the ellipse collapses to a line (singularity).</li>
+        <li>Draw a figure-eight in Draw mode: the arm acts as a plotter using continuous IK.</li>
+        <li>Move an obstacle between the arm and a target, then plan again.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="arm-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
