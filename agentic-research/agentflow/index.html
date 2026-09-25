@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentFlow — Agentic Workflow Studio</title>
+  <meta name="description" content="Design LLM agent workflows as graphs — planners, parallel tool calls, reflection loops, routers and human approval — and simulate their latency, cost and reliability with retries, timeouts, fallbacks, rate limits and caching." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='9' width='6' height='6' rx='1.5' fill='%2322d3ee'/%3E%3Crect x='16' y='3' width='6' height='6' rx='1.5' fill='%23a3e635'/%3E%3Crect x='16' y='15' width='6' height='6' rx='1.5' fill='%23a3e635'/%3E%3Cpath d='M8 12h4M12 12V6h4M12 12v6h4' stroke='%2322d3ee' stroke-width='1.6' fill='none'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid; height: 100%; min-height: 680px; gap: 12px;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 0.95fr);
+      grid-template-rows: minmax(0, 0.82fr) minmax(0, 1.18fr);
+      grid-template-areas: 'graph graph graph' 'gantt analytics inspect';
+    }
+    .p-graph { grid-area: graph; } .p-inspect { grid-area: inspect; } .p-gantt { grid-area: gantt; } .p-analytics { grid-area: analytics; }
+    .inspect-body { padding: 12px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+    .insp-type { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border-2); }
+    .insp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+    .insp-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
+    .insp-grid label.full { grid-column: 1 / -1; }
+    .insp-grid input, .insp-grid select, .op-row input, .op-row select {
+      font: 12.5px var(--font-mono); color: var(--text); background: var(--inset); border: 1px solid var(--border-2); border-radius: 7px; padding: 5px 8px; width: 100%; min-width: 0;
+    }
+    .insp-grid input:focus, .op-row input:focus { outline: none; border-color: var(--accent); }
+    .ops-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+    .op-row { display: grid; grid-template-columns: 1.5fr .9fr .75fr .75fr; gap: 5px; align-items: center; }
+    .op-row .nm { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .op-head { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    .node-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .node-stats .stat { padding: 6px 9px; }
+    .node-stats .stat .v { font-size: 14px; }
+    .an-body { display: flex; flex-direction: column; }
+    .an-body .stats { padding: 10px 12px 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .an-body .stat { padding: 6px 9px; }
+    .an-body .stat .v { font-size: 15px; }
+    .stat .d { font-size: 11px; font-family: var(--font-mono); margin-left: 4px; }
+    .stat .d.up { color: var(--bad); } .stat .d.down { color: var(--good); }
+    .an-view { flex: 1; min-height: 0; position: relative; }
+    .bars { position: absolute; inset: 0; overflow: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 7px; }
+    .bar-row { display: grid; grid-template-columns: minmax(80px, 38%) 1fr 66px; gap: 8px; align-items: center; font-size: 12px; }
+    .bar-row .nm { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-row .tr { display: flex; flex-direction: column; gap: 3px; }
+    .bar-row .b { height: 7px; border-radius: 4px; }
+    .bar-row .v { font-family: var(--font-mono); font-size: 11px; color: var(--text); text-align: right; white-space: nowrap; }
+    .trace { position: absolute; inset: 0; overflow: auto; }
+    .trace table { font-size: 11.5px; }
+    .trace td.k { font-family: var(--font-sans); }
+    .k-call { color: #22d3ee; } .k-fail, .k-timeout { color: #fb7185; } .k-backoff { color: #fbbf24; } .k-queue { color: #8b93b8; } .k-cache { color: #a3e635; } .k-human { color: #fbbf24; }
+    .wf-desc { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+    .preset-list { display: flex; flex-direction: column; gap: 6px; }
+    .preset-list .btn { justify-content: flex-start; font-size: 12.5px; }
+    .preset-list .btn.active { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+    .hidden { display: none !important; }
+    .panel-head .seg { flex-wrap: nowrap; }
+    .panel-head .seg button { padding: 5px 9px; white-space: nowrap; }
+    .trace td, .trace th { white-space: nowrap; }
+    @media (max-width: 1100px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'graph' 'inspect' 'analytics' 'gantt'; height: auto; }
+      .p-graph { height: 400px; } .p-inspect { height: 420px; } .p-analytics { height: 420px; } .p-gantt { height: 340px; }
+    }
+  </style>
+</head>
+<body data-domain="research">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9.5" width="5" height="5" rx="1.2"/><rect x="17" y="3.5" width="5" height="5" rx="1.2"/><rect x="17" y="15.5" width="5" height="5" rx="1.2"/><path d="M7 12h4M11 12V6h6M11 12v6h6"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Agent<span class="accent">Flow</span></div>
+          <div class="brand-sub">Agentic workflow studio — design LLM agent pipelines, simulate latency, cost &amp; reliability</div>
+        </div>
+      </div>
+      <span class="chip">Agentic AI</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/agentic-research/agentflow" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Workflow</div>
+          <div class="preset-list" id="presets"></div>
+          <div class="wf-desc" id="wf-desc"></div>
+        </section>
+        <section class="section">
+          <div class="section-title">Reliability policy</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-retries">Retries per call</label><span class="value" data-value-for="sl-retries"></span></div>
+            <input type="range" id="sl-retries" min="0" max="5" step="1" value="2" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-backoff">Backoff base</label><span class="value" data-value-for="sl-backoff"></span></div>
+            <input type="range" id="sl-backoff" min="0.25" max="5" step="0.25" value="1" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-timeout">Call timeout</label><span class="value" data-value-for="sl-timeout"></span></div>
+            <input type="range" id="sl-timeout" min="5" max="120" step="5" value="60" />
+          </div>
+          <label class="switch">Jittered backoff<input type="checkbox" id="tg-jitter" checked /><span class="track"></span></label>
+          <label class="switch">Fall back to small model<input type="checkbox" id="tg-fallback" checked /><span class="track"></span></label>
+        </section>
+        <section class="section">
+          <div class="section-title">Throughput</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-conc">Concurrent LLM calls (rate limit)</label><span class="value" data-value-for="sl-conc"></span></div>
+            <input type="range" id="sl-conc" min="1" max="16" step="1" value="4" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-cache">Response-cache hit rate</label><span class="value" data-value-for="sl-cache"></span></div>
+            <input type="range" id="sl-cache" min="0" max="0.8" step="0.05" value="0" />
+          </div>
+        </section>
+        <section class="section">
+          <div class="section-title">Simulation <span class="hint"><kbd>Space</kbd> replay</span></div>
+          <div class="field">
+            <div class="field-row"><span class="label">Monte Carlo runs</span></div>
+            <div class="seg" id="seg-runs">
+              <button data-value="500">500</button>
+              <button data-value="2000" class="active">2,000</button>
+              <button data-value="5000">5,000</button>
+            </div>
+          </div>
+          <button class="btn primary block" id="btn-replay"><i data-icon="play"></i>Replay one execution</button>
+          <div class="btn-row" style="margin-top:8px">
+            <button class="btn" id="btn-pin"><i data-icon="pin"></i>Pin baseline</button>
+            <button class="btn ghost" id="btn-unpin">Clear</button>
+          </div>
+          <div class="btn-row" style="margin-top:8px">
+            <button class="btn" id="btn-export"><i data-icon="download"></i>Export</button>
+            <button class="btn" id="btn-import"><i data-icon="upload"></i>Import</button>
+          </div>
+          <input type="file" id="file-wf" accept=".json,application/json" class="hidden" />
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-graph">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Workflow graph</div>
+              <div class="panel-sub" id="graph-sub"></div>
+              <div class="spacer"></div>
+              <div class="legend" id="type-legend"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-graph" class="interactive"></canvas>
+              <div class="overlay-label bl" id="graph-hint">drag nodes · click to inspect</div>
+            </div></div>
+          </section>
+          <section class="panel p-inspect">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Inspector</div>
+              <div class="panel-sub" id="insp-sub"></div>
+            </div>
+            <div class="panel-body inspect-body" id="inspector"></div>
+          </section>
+          <section class="panel p-gantt">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Execution trace</div>
+              <div class="panel-sub" id="gantt-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-gantt"></canvas></div></div>
+          </section>
+          <section class="panel p-analytics">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Monte Carlo</div>
+              <div class="spacer"></div>
+              <div class="seg no-dot" id="seg-tab">
+                <button data-value="latency" class="active">Latency</button>
+                <button data-value="cost">Cost</button>
+                <button data-value="bottleneck">Hotspots</button>
+                <button data-value="trace">Spans</button>
+              </div>
+            </div>
+            <div class="panel-body an-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Success</div><div class="v" id="st-succ">—</div></div>
+                <div class="stat"><div class="k">p50</div><div class="v" id="st-p50">—</div></div>
+                <div class="stat"><div class="k">p95</div><div class="v" id="st-p95">—</div></div>
+                <div class="stat"><div class="k">Cost / run</div><div class="v" id="st-cost">—</div></div>
+                <div class="stat"><div class="k">Tokens</div><div class="v" id="st-tok">—</div></div>
+                <div class="stat"><div class="k">LLM calls</div><div class="v" id="st-calls">—</div></div>
+              </div>
+              <div class="an-view">
+                <div class="canvas-wrap" id="an-plot"><canvas id="cv-an"></canvas></div>
+                <div class="bars hidden" id="an-bars"></div>
+                <div class="trace hidden" id="an-trace"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How AgentFlow works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>Production agent systems are distributed systems: dozens of model and tool calls, each with variable latency, a price,
+        and a chance of failing. AgentFlow lets you design the workflow as a graph and measures how it behaves <em>as a system</em>
+        with a discrete-event simulation — before spending a cent on API calls.</p>
+      <h3>Building blocks</h3>
+      <ul>
+        <li><strong>LLM call</strong> — model tier, prompt and completion tokens. Latency = time-to-first-token + tokens ÷ throughput (log-normal variability); cost = tokens × price.</li>
+        <li><strong>Tool call</strong> — log-normal latency and a failure probability (search APIs, databases, test runners…).</li>
+        <li><strong>Human step</strong> — review or approval with long, heavy-tailed waiting times.</li>
+        <li><strong>Parallel map</strong> — fans a sub-pipeline out over N items with a concurrency limit and a minimum success fraction.</li>
+        <li><strong>Reflection loop</strong> — check → (fail) fix → check …; pass probability grows with each iteration, up to a maximum.</li>
+        <li><strong>Router</strong> — sends each run down one branch with the given probabilities; joins wait only for active branches.</li>
+      </ul>
+      <h3>Execution semantics</h3>
+      <p>A node starts when all of its active predecessors have finished (fork/join). Events are processed in time order from a
+        binary-heap event queue. A global semaphore models the provider's concurrency limit — excess calls queue.</p>
+      <h3>Reliability policy</h3>
+      <div class="eq">wait_k = base · 2^k · U(0.5, 1.5)   (exponential backoff with jitter)</div>
+      <ul>
+        <li>Failed or timed-out calls are retried; timed-out requests are still billed for their input tokens.</li>
+        <li>After the last retry an LLM call can fall back once to the small model.</li>
+        <li>A response cache short-circuits a fraction of LLM calls.</li>
+      </ul>
+      <h3>Analytics</h3>
+      <p>Thousands of seeded runs give the latency distribution (p50 / p95 / p99), cost per run and success rate. For each successful
+        run the <strong>critical path</strong> is traced back from the end node through the predecessor that finished last; each node's
+        share of the end-to-end latency shows where optimisation pays off. Pin a baseline to compare designs A/B.</p>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Set retries to 0 in the research agent: success drops from ~100% to about two-thirds.</li>
+        <li>Lower the timeout to 30 s — long generations time out, get retried and fall back.</li>
+        <li>In the debate preset set concurrency to 1 and watch the parallel agents serialise.</li>
+        <li>In support triage, most of the p95 latency is the human branch — pin, then lower its share on the router.</li>
+      </ul>
+      <p class="muted" style="font-size:12px">Model tiers and prices are illustrative, not quotes from any provider.</p>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="agent-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

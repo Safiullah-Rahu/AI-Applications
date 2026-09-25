@@ -531,6 +531,107 @@ suite('evodrive', (t) => {
   });
 });
 
+// ================================================================== agentic systems & research methods
+suite('metalab', (t) => {
+  const MC = req('agentic-research/metalab/meta-core.js');
+  t('distribution functions match reference values', () => {
+    near(MC.normCdf(1.959963984540054), 0.975, 1e-13);
+    near(MC.normCdf(-1), 0.15865525393145707, 1e-13);
+    near(MC.normInv(0.975), 1.959963984540054, 1e-12);
+    near(MC.tInv(0.975, 10), 2.228138851986273, 1e-9);
+    near(MC.tCdf(2.228138851986273, 10), 0.975, 1e-10);
+    near(MC.chi2Cdf(18.307038053275146, 10), 0.95, 1e-10);
+    near(MC.nctCdf(1.5, 10, 0), MC.tCdf(1.5, 10), 1e-8, 'non-central t with δ = 0 equals central t');
+  });
+  t('BCG meta-analysis reproduces metafor (FE, DL, REML)', () => {
+    const y = MC.BCG.map((s) => s.yi);
+    const v = MC.BCG.map((s) => s.vi);
+    const fe = MC.metaAnalyze(y, v, { method: 'FE' });
+    near(fe.mu, -0.4303, 5e-4, 'fixed-effect estimate');
+    near(fe.Q, 152.233, 1e-2, 'Cochran Q');
+    const dl = MC.metaAnalyze(y, v, { method: 'DL' });
+    near(dl.tau2, 0.3088, 5e-4, 'DL τ²');
+    const re = MC.metaAnalyze(y, v, { method: 'REML' });
+    near(re.mu, -0.7145, 5e-4, 'REML estimate');
+    near(re.tau2, 0.3132, 5e-4, 'REML τ²');
+    near(re.I2 * 100, 92.22, 0.05, 'I²');
+    near(re.se, 0.1798, 5e-4, 'SE');
+  });
+  t('power and sample size match G*Power', () => {
+    near(MC.power('two', 0.5, 64), 0.8015, 1e-3);
+    near(MC.power('two', 0.8, 20), 0.6934, 1e-3);
+    ok(MC.requiredN('two', 0.5) === 64, 'd = .5 → 64 per group');
+    ok(MC.requiredN('one', 0.5) === 34, 'paired d = .5 → 34');
+    ok(MC.requiredN('corr', 0.3) === 85, 'r = .3 → 85');
+  });
+  t('Monte Carlo power agrees with the analytic value', () => {
+    const sims = MC.simulateExperiments(0.5, 40, 4000, LM.makeRng(21));
+    const emp = sims.filter((s) => s.p < 0.05).length / sims.length;
+    near(emp, MC.power('two', 0.5, 40), 0.03, 'empirical power');
+  });
+  t('publication bias inflates estimates; trim-and-fill and PET correct towards the truth', () => {
+    const lit = MC.simulateLiterature({ delta: 0.15, tau: 0.05, attempts: 300, pubNonSig: 0.05, hacking: 1, seed: 4 });
+    const pub = lit.filter((s) => s.published);
+    const y = pub.map((s) => s.yi);
+    const v = pub.map((s) => s.vi);
+    const naive = MC.metaAnalyze(y, v).mu;
+    ok(naive > 0.25, `naive estimate ${naive.toFixed(3)} is inflated`);
+    const tf = MC.trimAndFill(y, v, { side: 'left' });
+    ok(tf.k0 > 0 && tf.adjusted.mu < naive, `trim-and-fill adds ${tf.k0} studies and lowers the estimate`);
+    ok(MC.eggerTest(y, v).p < 0.05, "Egger's test detects the asymmetry");
+    ok(Math.abs(MC.petEstimate(y, v).estimate - 0.15) < Math.abs(naive - 0.15), 'PET is closer to the truth');
+  });
+});
+
+suite('agentflow', (t) => {
+  const AF = req('agentic-research/agentflow/agent-core.js');
+  t('event queue pops in time order (FIFO on ties)', () => {
+    const q = new AF.EventQueue();
+    const out = [];
+    const rng = LM.makeRng(2);
+    for (let i = 0; i < 500; i++) { const tt = Math.floor(rng.next() * 50); q.push(tt, () => out.push([tt, i])); }
+    let prev = [-1, -1];
+    while (q.size) { q.pop().fn(); const cur = out[out.length - 1]; ok(cur[0] > prev[0] || (cur[0] === prev[0] && cur[1] > prev[1]), 'ordered'); prev = cur; }
+  });
+  t('presets are valid DAGs; cycles are rejected', () => {
+    for (const k of Object.keys(AF.PRESETS)) ok(AF.validate(AF.preset(k)).length === 0, `${k} is valid`);
+    const wf = AF.preset('debate');
+    wf.edges.push({ from: 'judge', to: 'pro' });
+    ok(AF.validate(wf).some((e) => /cycle/.test(e)), 'cycle detected');
+  });
+  t('retry policy matches the analytic success probability', () => {
+    const wf = {
+      nodes: [{ id: 's', type: 'start', label: 's', x: 0, y: 0 }, { id: 'a', type: 'tool', label: 'flaky', latency: 1, spread: 0.2, fail: 0.3, x: 1, y: 0 }, { id: 'e', type: 'end', label: 'e', x: 2, y: 0 }],
+      edges: [{ from: 's', to: 'a' }, { from: 'a', to: 'e' }],
+    };
+    for (const r of [0, 1, 3]) {
+      const mc = AF.monteCarlo(wf, { retries: r, fallback: false }, 6000, 5);
+      near(mc.success, 1 - 0.3 ** (r + 1), 0.015, `success with ${r} retries`);
+    }
+  });
+  t('simulation is deterministic per seed and critical-path shares sum to 1', () => {
+    const a = AF.monteCarlo(AF.preset('research'), {}, 300, 9);
+    const b = AF.monteCarlo(AF.preset('research'), {}, 300, 9);
+    ok(a.p50 === b.p50 && a.meanCost === b.meanCost, 'same seed, same result');
+    near(Object.values(a.critShare).reduce((s, x) => s + x, 0), 1, 1e-9, 'shares');
+  });
+  t('a concurrency limit of 1 serialises parallel agents', () => {
+    const wide = AF.monteCarlo(AF.preset('debate'), { concurrency: 8 }, 800, 3);
+    const one = AF.monteCarlo(AF.preset('debate'), { concurrency: 1 }, 800, 3);
+    ok(one.p50 > wide.p50 * 1.3, `p50 ${wide.p50.toFixed(1)} s → ${one.p50.toFixed(1)} s`);
+  });
+  t('routers skip untaken branches and joins still complete', () => {
+    const rng = LM.makeRng(4);
+    for (let i = 0; i < 200; i++) {
+      const r = AF.runWorkflow(AF.preset('support'), { retries: 3 }, rng);
+      if (!r.ok) continue;
+      const taken = ['billing', 'kbs', 'human'].filter((id) => r.nodeStart[id] != null);
+      ok(taken.length === 1, 'exactly one branch runs');
+      ok(r.nodeEnd.guard != null, 'the join after the router runs');
+    }
+  });
+});
+
 // ------------------------------------------------------------------ runner
 (async () => {
   const filters = process.argv.slice(2);

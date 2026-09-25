@@ -69,6 +69,7 @@ body[data-domain='mechatronics'] { --accent: #fbbf24; --accent-2: #fb923c; --acc
 body[data-domain='medical']      { --accent: #2dd4bf; --accent-2: #38bdf8; --accent-soft: rgba(45, 212, 191, 0.13); }
 body[data-domain='assistive']    { --accent: #a78bfa; --accent-2: #34d399; --accent-soft: rgba(167, 139, 250, 0.14); }
 body[data-domain='ai']           { --accent: #f472b6; --accent-2: #818cf8; --accent-soft: rgba(244, 114, 182, 0.13); }
+body[data-domain='research']     { --accent: #22d3ee; --accent-2: #a3e635; --accent-soft: rgba(34, 211, 238, 0.13); }
 
 *, *::before, *::after { box-sizing: border-box; }
 

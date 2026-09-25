@@ -171,6 +171,40 @@ const APPS = [
       await wait(page, 4000);
     },
   },
+  {
+    slug: 'agentflow',
+    url: 'agentic-research/agentflow/index.html',
+    async hero(page) {
+      await wait(page, 1200);
+      await page.evaluate(() => AgentFlow.finishReplay());
+      await wait(page, 400);
+    },
+    async second(page) {
+      await page.evaluate(() => { AgentFlow.preset('coding'); AgentFlow.finishReplay(); AgentFlow.pin(); AgentFlow.set({ retries: 0, timeout: 30 }); AgentFlow.tab('bottleneck'); });
+      await wait(page, 600);
+      await page.evaluate(() => AgentFlow.finishReplay());
+      await wait(page, 3000);
+    },
+  },
+  {
+    slug: 'metalab',
+    url: 'agentic-research/metalab/index.html',
+    async hero(page) {
+      await wait(page, 800);
+    },
+    async second(page) {
+      await page.evaluate(() => MetaLab.module('bias'));
+      await wait(page, 300);
+      await page.evaluate(() => MetaLab.bias('hacked'));
+      await wait(page, 4800);
+    },
+    async third(page) {
+      await page.evaluate(() => { MetaLab.module('power'); });
+      await wait(page, 400);
+      await page.evaluate(() => MetaLab.simulate());
+      await wait(page, 600);
+    },
+  },
 ];
 
 async function thumbnail(browser, png, jpg) {
@@ -213,6 +247,10 @@ async function thumbnail(browser, png, jpg) {
     if (app.second) {
       await app.second(page);
       await page.screenshot({ path: path.join(OUT, `${app.slug}-2.png`) });
+    }
+    if (app.third) {
+      await app.third(page);
+      await page.screenshot({ path: path.join(OUT, `${app.slug}-3.png`) });
     }
     await thumbnail(browser, hero, path.join(OUT, 'thumbs', `${app.slug}.jpg`));
     console.log(`${errors.length ? '✗' : '✓'} ${app.slug} (${((Date.now() - t0) / 1000).toFixed(1)} s)${errors.length ? '\n    ' + errors.join('\n    ') : ''}`);
