@@ -236,6 +236,64 @@ const APPS = [
       await wait(page, 1500);
     },
   },
+  {
+    slug: 'inksign',
+    url: 'everyday-tools/inksign/index.html',
+    async hero(page) {
+      await wait(page, 600);
+      await page.evaluate(async () => {
+        InkSign.ink('#1e3a8a');
+        InkSign.demoDraw('sig');
+        InkSign.save();
+        InkSign.mode('type');
+        InkSign.kind('ini');
+        InkSign.font(0);
+        await document.fonts.ready;
+        await new Promise((r) => setTimeout(r, 200));
+        InkSign.save();
+        InkSign.kind('sig');
+        InkSign.mode('draw');
+        const a = await InkSign.sample();
+        InkSign.place('check', 1, a.check[0], a.check[1]);
+        const sig = InkSign.place('sig', 1, a.sig[0], a.sig[1]);
+        InkSign.place('name', 1, a.name[0], a.name[1]);
+        InkSign.place('date', 1, a.date[0], a.date[1]);
+        InkSign.initialAll();
+        InkSign.select(sig);
+        const pg = document.querySelector('.page[data-page="1"]');
+        document.getElementById('doc-body').scrollTop = pg.offsetTop + pg.offsetHeight * 0.2;
+      });
+      await wait(page, 1200);
+      await page.evaluate(() => document.querySelectorAll('.toast-host').forEach((e) => e.remove()));
+    },
+    async second(page) {
+      await page.evaluate(() => { InkSign.tab('studio'); InkSign.mode('draw'); InkSign.demoDraw('sig'); });
+      await wait(page, 500);
+      await page.evaluate(() => document.querySelectorAll('.toast-host').forEach((e) => e.remove()));
+    },
+    async third(page) {
+      // a phone photo of a signature on paper: uneven lighting, grain, pen ink
+      await page.evaluate(async () => {
+        const c = document.createElement('canvas');
+        c.width = 1400; c.height = 560;
+        const g = c.getContext('2d');
+        const grd = g.createLinearGradient(0, 0, 1400, 560);
+        grd.addColorStop(0, '#d9d4c7'); grd.addColorStop(0.6, '#bdb6a6'); grd.addColorStop(1, '#8f897c');
+        g.fillStyle = grd; g.fillRect(0, 0, 1400, 560);
+        g.fillStyle = '#2b2f3a'; g.font = '190px "Sacramento"';
+        g.fillText('Safiullah Rahu', 150, 360);
+        g.strokeStyle = '#2b2f3a'; g.lineWidth = 4; g.beginPath(); g.moveTo(170, 420); g.bezierCurveTo(500, 470, 900, 380, 1250, 420); g.stroke();
+        const d = g.getImageData(0, 0, 1400, 560);
+        for (let i = 0; i < d.data.length; i += 4) { const n = (Math.random() - 0.5) * 22; d.data[i] += n; d.data[i + 1] += n; d.data[i + 2] += n; }
+        g.putImageData(d, 0, 0);
+        const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9));
+        InkSign.ink('#1d4ed8');
+        await InkSign.photo(blob);
+      });
+      await wait(page, 700);
+      await page.evaluate(() => document.querySelectorAll('.toast-host').forEach((e) => e.remove()));
+    },
+  },
 ];
 
 async function thumbnail(browser, png, jpg) {

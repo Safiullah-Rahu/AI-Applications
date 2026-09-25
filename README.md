@@ -1,11 +1,12 @@
 # Safiullah Rahu · Interactive Engineering Portfolio
 
-**Twelve interactive simulators across Mechatronics, Medical Imaging, Assistive Robotics, AI, Agentic Systems & Research Methods, and Connected Health & Energy. They run in your browser.**
+**Thirteen interactive apps across Mechatronics, Medical Imaging, Assistive Robotics, AI, Agentic Systems & Research Methods, Connected Health & Energy, and Everyday Tools. They run in your browser.**
 
 Each app is a working simulator of a real engineering problem. You can tune a servo loop, plan a robot arm's motion, reconstruct CT
 and MRI scans, drive a smart wheelchair, control a prosthetic hand with muscle signals, or watch neural networks learn by
 back-propagation and by evolution. Every algorithm is implemented from scratch in plain JavaScript, with no frameworks, no
-numeric libraries and no build step, and each app's maths lives in a Node-tested core module.
+numeric libraries and no build step, and each app's maths lives in a Node-tested core module. There is also a practical everyday
+tool: **InkSign**, for creating a signature and signing PDFs privately in the browser.
 
 **▶ Live portfolio: [safiullah-rahu.github.io/AI-Applications](https://safiullah-rahu.github.io/AI-Applications/)**
 (served by GitHub Pages; see [deployment](#deploy-on-github-pages)). You can also open `index.html` locally.
@@ -26,6 +27,7 @@ numeric libraries and no build step, and each app's maths lives in a Node-tested
 | 📊 Research Methods | [**MetaLab**: research synthesis, power & bias workbench](agentic-research/metalab/) | REML meta-analysis · forest & funnel plots · trim-and-fill · exact power · publication-bias simulation |
 | 🔋 Energy Systems | [**VoltWise**: EV battery management system](health-energy/battery-bms/) | Thevenin cell model · drive cycles · SOC estimation with EKFs · CC-CV charging · cell balancing |
 | 🩺 Digital Health | [**FallGuard**: wearable fall detection & alerting](health-energy/fallguard/) | accelerometer models · threshold / state-machine / learned detectors · alert escalation · sensitivity vs false alarms/day |
+| ✍️ Everyday Tools | [**InkSign**: create a signature & sign documents](everyday-tools/inksign/) | draw / type / photo signatures · sign PDFs and photos · initials on every page · signing certificate with SHA-256 · 100 % on-device |
 
 ---
 
@@ -136,16 +138,29 @@ machine and a learned model) drive an "Are you OK?" countdown and caregiver esca
 finding: algorithms tuned on simulated lab falls lose much of their sensitivity on real falls of older adults, and every threshold trades
 missed falls for false alarms per day. **[Open app](health-energy/fallguard/index.html) · [Details](health-energy/fallguard/README.md)**
 
+## ✍️ Everyday Tools
+
+### InkSign: Create a Signature & Sign Documents
+[![InkSign](screenshots/inksign.png)](everyday-tools/inksign/)
+
+A private, free alternative to e-signature websites for everyday paperwork: leases, offer letters, NDAs, forms and permission slips.
+Draw a signature with speed-sensitive pen strokes, type it in one of five handwriting fonts, or photograph it on paper (lighting is
+flattened and Otsu thresholding removes the paper). Then open a PDF or a photo of a document and place your signature, initials (on every page
+in one click), name, date, text and checkmarks. You get back the original PDF with the fields added, plus an optional signing certificate
+page recording the time, time zone, fields and the SHA-256 fingerprint of the original. Signatures also export as transparent PNG, SVG or to the clipboard.
+Nothing is uploaded. **[Open app](everyday-tools/inksign/index.html) · [Details](everyday-tools/inksign/README.md)**
+
 ---
 
 ## Engineering notes
 
 - **Written from scratch.** FFTs, Radon transforms, reconstruction algorithms, distance transforms, planners, classifiers,
   back-propagation, the genetic algorithm, the discrete-event agent simulator and the meta-analytic estimators are all hand-written. The source is meant to be read.
+  The one exception is InkSign, which uses vendored copies of Mozilla's pdf.js (to render PDFs) and pdf-lib (to write them), both open source.
 - **Separated cores.** Each app keeps its maths in a DOM-free `*-core.js` module (loadable in Node or the browser) and its UI
   in `app.js`. The design system and plotting live in [`shared/`](shared/).
 - **Tested.** [`tests/run-tests.js`](tests/run-tests.js) checks the cores against analytic results, brute-force references, finite differences and reference software (metafor, G*Power).
-  It runs 55 tests covering all 12 apps in about 5 s with no dependencies.
+  It runs 61 tests covering all 13 apps in about 7 s with no dependencies.
 - **Static and portable.** The apps are plain HTML, CSS and JS with self-hosted fonts. They work from `file://`, any static server or GitHub Pages,
   offline, with no API keys.
 
@@ -202,6 +217,8 @@ agentic-research/
 health-energy/
   battery-bms/                 VoltWise
   fallguard/                   FallGuard
+everyday-tools/
+  inksign/                     InkSign
 tests/run-tests.js             core-module test suite
 tools/screenshots.js           screenshot generator (Playwright)
 screenshots/                   README and hub images
