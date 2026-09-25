@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MetaLab — Research Synthesis, Power &amp; Bias Workbench</title>
+  <meta name="description" content="A research-methods workbench in the browser: random-effects meta-analysis (DL / REML, Knapp–Hartung), forest and contour-enhanced funnel plots, Egger's test, trim-and-fill, exact power analysis with the non-central t, and a publication-bias / p-hacking simulator." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 6h10M4 11h14M4 16h8' stroke='%2322d3ee' stroke-width='2.4' stroke-linecap='round'/%3E%3Cpath d='M12 20l3-3 3 3-3 3z' fill='%23a3e635'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .module { display: none; height: 100%; min-height: 680px; gap: 12px; }
+    .module.on { display: grid; }
+    #mod-meta { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.08fr) minmax(0, 1fr); grid-template-areas: 'forest funnel' 'forest diag'; }
+    #mod-power { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'curve dist' 'sim sim'; }
+    #mod-bias { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: 'bfunnel est' 'pcurve bstats'; }
+    .p-forest { grid-area: forest; } .p-funnel { grid-area: funnel; } .p-diag { grid-area: diag; }
+    .p-curve { grid-area: curve; } .p-dist { grid-area: dist; } .p-sim { grid-area: sim; }
+    .p-bfunnel { grid-area: bfunnel; } .p-est { grid-area: est; } .p-pcurve { grid-area: pcurve; } .p-bstats { grid-area: bstats; }
+    .diag-body { display: flex; flex-direction: column; gap: 10px; padding: 12px; overflow: auto; }
+    .diag-body .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .stat { padding: 7px 10px; }
+    .stat .v { font-size: 15.5px; }
+    .stat .s { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .report { font-size: 12.5px; line-height: 1.6; color: var(--text-2); background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; position: relative; }
+    .report b { color: var(--text); font-weight: 600; }
+    .report .copy { position: absolute; top: 7px; right: 7px; }
+    #report { padding-right: 70px; }
+    .panel-head .seg { flex-wrap: nowrap; }
+    .panel-head .seg button { white-space: nowrap; padding: 5px 10px; }
+    textarea.data { width: 100%; min-height: 150px; resize: vertical; font: 11.5px/1.45 var(--font-mono); color: var(--text); background: var(--inset); border: 1px solid var(--border-2); border-radius: 9px; padding: 8px 10px; white-space: pre; }
+    textarea.data:focus { outline: none; border-color: var(--accent); }
+    .parse-msg { font-size: 11.5px; margin-top: 4px; color: var(--muted); }
+    .parse-msg.bad { color: var(--bad); }
+    .sim-body { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: 100%; }
+    .sim-body .stats { padding: 12px; grid-template-columns: 1fr 1fr; align-content: start; gap: 7px; border-right: 1px solid var(--border); }
+    .sim-body .note { grid-column: 1 / -1; font-size: 11.5px; }
+    .bstats-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+    .bstats-body .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+    .hidden { display: none !important; }
+    .preset-list { display: flex; flex-direction: column; gap: 6px; }
+    .preset-list .btn { justify-content: flex-start; font-size: 12px; }
+    @media (max-width: 1100px) {
+      .module { grid-template-columns: 1fr !important; grid-template-rows: none !important; height: auto; }
+      #mod-meta { grid-template-areas: 'forest' 'funnel' 'diag'; }
+      #mod-power { grid-template-areas: 'curve' 'dist' 'sim'; }
+      #mod-bias { grid-template-areas: 'bfunnel' 'est' 'pcurve' 'bstats'; }
+      .p-forest { height: 560px; } .p-funnel, .p-curve, .p-dist, .p-bfunnel, .p-est, .p-pcurve { height: 360px; }
+      .p-sim { height: 520px; }
+      .sim-body { grid-template-columns: 1fr; grid-template-rows: auto 280px; }
+      .sim-body .stats { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body data-domain="research">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M4 10h13M4 15h7"/><path d="M15 17l3-3 3 3-3 3z"/><path d="M12 3v18" stroke-dasharray="2 2"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Meta<span class="accent">Lab</span></div>
+          <div class="brand-sub">Research-methods workbench — meta-analysis, statistical power &amp; publication bias</div>
+        </div>
+      </div>
+      <span class="chip">Research methods</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/agentic-research/metalab" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Module <span class="hint"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span></div>
+          <div class="seg" id="seg-module">
+            <button data-value="meta" class="active">Meta-analysis</button>
+            <button data-value="power">Power</button>
+            <button data-value="bias">Bias lab</button>
+          </div>
+        </section>
+
+        <!-- ================================================= meta-analysis controls -->
+        <div class="side-meta">
+          <section class="section">
+            <div class="section-title">Data</div>
+            <div class="field">
+              <select id="sel-dataset">
+                <option value="bcg">BCG vaccine trials (Colditz 1994) — 13 RCTs</option>
+                <option value="smd">Simulated literature — standardized mean differences</option>
+                <option value="custom">Custom — paste or edit CSV</option>
+              </select>
+            </div>
+            <div class="field" id="field-measure">
+              <div class="field-row"><span class="label">Effect measure</span></div>
+              <div class="seg" id="seg-measure">
+                <button data-value="RR" class="active">Risk ratio</button>
+                <button data-value="OR">Odds ratio</button>
+              </div>
+            </div>
+            <textarea class="data" id="ta-data" spellcheck="false" aria-label="Study data (CSV)"></textarea>
+            <div class="parse-msg" id="parse-msg"></div>
+          </section>
+          <section class="section">
+            <div class="section-title">Model</div>
+            <div class="field">
+              <div class="field-row"><span class="label">Between-study variance τ²</span></div>
+              <div class="seg" id="seg-method">
+                <button data-value="FE">Fixed</button>
+                <button data-value="DL">DL</button>
+                <button data-value="REML" class="active">REML</button>
+              </div>
+            </div>
+            <div class="field">
+              <div class="field-row"><span class="label">Confidence interval</span></div>
+              <div class="seg" id="seg-test">
+                <button data-value="z" class="active">Wald z</button>
+                <button data-value="knha">Knapp–Hartung</button>
+              </div>
+            </div>
+            <div class="field">
+              <div class="field-row"><span class="label">Sort studies by</span></div>
+              <div class="seg" id="seg-sort">
+                <button data-value="input" class="active">Input</button>
+                <button data-value="year">Year</button>
+                <button data-value="effect">Effect</button>
+                <button data-value="weight">Weight</button>
+              </div>
+            </div>
+            <label class="switch">Contour-enhanced funnel<input type="checkbox" id="tg-contour" checked /><span class="track"></span></label>
+            <label class="switch">Trim-and-fill on funnel<input type="checkbox" id="tg-tf" checked /><span class="track"></span></label>
+          </section>
+        </div>
+
+        <!-- ================================================= power controls -->
+        <div class="side-power hidden">
+          <section class="section">
+            <div class="section-title">Design</div>
+            <div class="seg" id="seg-design">
+              <button data-value="two" class="active">2-group t</button>
+              <button data-value="one">Paired t</button>
+              <button data-value="prop">2 props</button>
+              <button data-value="corr">Correlation</button>
+            </div>
+            <div class="field" style="margin-top:12px" id="f-d">
+              <div class="field-row"><label for="sl-d">Effect size (Cohen's d)</label><span class="value" data-value-for="sl-d"></span></div>
+              <input type="range" id="sl-d" min="0.05" max="1.5" step="0.01" value="0.5" />
+            </div>
+            <div class="field hidden" id="f-p">
+              <div class="field-row"><label for="sl-p1">Proportion p₁</label><span class="value" data-value-for="sl-p1"></span></div>
+              <input type="range" id="sl-p1" min="0.02" max="0.98" step="0.01" value="0.65" />
+              <div class="field-row" style="margin-top:8px"><label for="sl-p2">Proportion p₂</label><span class="value" data-value-for="sl-p2"></span></div>
+              <input type="range" id="sl-p2" min="0.02" max="0.98" step="0.01" value="0.5" />
+            </div>
+            <div class="field hidden" id="f-r">
+              <div class="field-row"><label for="sl-r">Correlation r</label><span class="value" data-value-for="sl-r"></span></div>
+              <input type="range" id="sl-r" min="0.05" max="0.8" step="0.01" value="0.3" />
+            </div>
+            <div class="field">
+              <div class="field-row"><label for="sl-n" id="lbl-n">Sample size per group</label><span class="value" data-value-for="sl-n"></span></div>
+              <input type="range" id="sl-n" min="4" max="400" step="1" value="40" />
+            </div>
+          </section>
+          <section class="section">
+            <div class="section-title">Error rates</div>
+            <div class="field">
+              <div class="field-row"><span class="label">Significance level α</span></div>
+              <div class="seg" id="seg-alpha">
+                <button data-value="0.005">.005</button>
+                <button data-value="0.01">.01</button>
+                <button data-value="0.05" class="active">.05</button>
+                <button data-value="0.1">.10</button>
+              </div>
+            </div>
+            <div class="field">
+              <div class="field-row"><span class="label">Test</span></div>
+              <div class="seg" id="seg-tails">
+                <button data-value="2" class="active">Two-sided</button>
+                <button data-value="1">One-sided</button>
+              </div>
+            </div>
+            <div class="field">
+              <div class="field-row"><label for="sl-target">Target power</label><span class="value" data-value-for="sl-target"></span></div>
+              <input type="range" id="sl-target" min="0.5" max="0.99" step="0.01" value="0.8" />
+            </div>
+            <button class="btn block" id="btn-use-n"><i data-icon="target"></i>Use required sample size</button>
+          </section>
+          <section class="section">
+            <div class="section-title">Monte Carlo check</div>
+            <button class="btn primary block" id="btn-sim"><i data-icon="play"></i>Simulate 2,000 experiments</button>
+            <div class="tiny muted" style="font-size:11.5px;margin-top:8px">Draws real samples, runs the t-test on each and compares empirical with analytic power (two-group design).</div>
+          </section>
+        </div>
+
+        <!-- ================================================= bias-lab controls -->
+        <div class="side-bias hidden">
+          <section class="section">
+            <div class="section-title">Scenarios</div>
+            <div class="preset-list">
+              <button class="btn" data-bias="honest">Honest science: everything published</button>
+              <button class="btn" data-bias="drawer">File drawer: null results stay unpublished</button>
+              <button class="btn" data-bias="hacked">p-hacking a true null effect</button>
+              <button class="btn" data-bias="small">Small real effect, strong selection</button>
+            </div>
+          </section>
+          <section class="section">
+            <div class="section-title">True state of the world</div>
+            <div class="field">
+              <div class="field-row"><label for="sl-bd">True mean effect δ</label><span class="value" data-value-for="sl-bd"></span></div>
+              <input type="range" id="sl-bd" min="0" max="0.8" step="0.01" value="0.2" />
+            </div>
+            <div class="field">
+              <div class="field-row"><label for="sl-btau">Heterogeneity τ</label><span class="value" data-value-for="sl-btau"></span></div>
+              <input type="range" id="sl-btau" min="0" max="0.4" step="0.01" value="0.05" />
+            </div>
+            <div class="field">
+              <div class="field-row"><label for="sl-bk">Studies conducted</label><span class="value" data-value-for="sl-bk"></span></div>
+              <input type="range" id="sl-bk" min="10" max="300" step="5" value="120" />
+            </div>
+            <div class="field">
+              <div class="field-row"><label for="sl-bn">Largest group size</label><span class="value" data-value-for="sl-bn"></span></div>
+              <input type="range" id="sl-bn" min="20" max="400" step="5" value="150" />
+            </div>
+          </section>
+          <section class="section">
+            <div class="section-title">Research practices</div>
+            <div class="field">
+              <div class="field-row"><label for="sl-bpub">Non-significant results published</label><span class="value" data-value-for="sl-bpub"></span></div>
+              <input type="range" id="sl-bpub" min="0" max="1" step="0.05" value="0.2" />
+            </div>
+            <div class="field">
+              <div class="field-row"><label for="sl-bhack">Outcomes tried per study (p-hacking)</label><span class="value" data-value-for="sl-bhack"></span></div>
+              <input type="range" id="sl-bhack" min="1" max="8" step="1" value="1" />
+            </div>
+            <button class="btn block" id="btn-resample"><i data-icon="shuffle"></i>New random literature</button>
+          </section>
+        </div>
+      </aside>
+
+      <main class="main">
+        <!-- ================================================= meta-analysis -->
+        <div class="module on" id="mod-meta">
+          <section class="panel p-forest">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Forest plot</div>
+              <div class="panel-sub" id="forest-sub"></div>
+              <div class="spacer"></div>
+              <div class="seg no-dot" id="seg-forest">
+                <button data-value="studies" class="active">Studies</button>
+                <button data-value="loo">Leave 1 out</button>
+                <button data-value="cum">Cumulative</button>
+              </div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-forest"></canvas></div></div>
+          </section>
+          <section class="panel p-funnel">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Funnel plot</div>
+              <div class="panel-sub" id="funnel-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-funnel"></canvas></div></div>
+          </section>
+          <section class="panel p-diag">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Results</div>
+              <div class="panel-sub" id="diag-sub"></div>
+            </div>
+            <div class="panel-body diag-body">
+              <div class="stats">
+                <div class="stat accent"><div class="k">Pooled effect</div><div class="v" id="st-mu">—</div><div class="s" id="st-ci"></div></div>
+                <div class="stat"><div class="k">Heterogeneity I²</div><div class="v" id="st-i2">—</div><div class="s" id="st-tau"></div></div>
+                <div class="stat"><div class="k">Cochran Q</div><div class="v" id="st-q">—</div><div class="s" id="st-qp"></div></div>
+                <div class="stat"><div class="k">Prediction interval</div><div class="v" id="st-pi">—</div><div class="s">where a new study may fall</div></div>
+                <div class="stat"><div class="k">Egger's test</div><div class="v" id="st-egger">—</div><div class="s" id="st-egger2"></div></div>
+                <div class="stat"><div class="k">Trim-and-fill</div><div class="v" id="st-tf">—</div><div class="s" id="st-tf2"></div></div>
+              </div>
+              <div class="report" id="report"><button class="btn sm ghost copy" id="btn-copy" title="Copy report">Copy</button><div id="report-text"></div></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ================================================= power -->
+        <div class="module" id="mod-power">
+          <section class="panel p-curve">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Power curve</div>
+              <div class="panel-sub" id="curve-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-curve"></canvas></div></div>
+          </section>
+          <section class="panel p-dist">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Null vs alternative</div>
+              <div class="panel-sub" id="dist-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-dist"></canvas></div></div>
+          </section>
+          <section class="panel p-sim">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Simulated experiments</div>
+              <div class="panel-sub" id="sim-sub">Press “Simulate” to run 2,000 experiments at the current design</div>
+              <div class="spacer"></div>
+              <div class="legend"><span><i class="box" style="background:#22d3ee"></i>significant</span><span><i class="box" style="background:#475177"></i>not significant</span><span><i style="background:#a3e635"></i>true effect</span></div>
+            </div>
+            <div class="panel-body sim-body">
+              <div class="stats">
+                <div class="stat accent"><div class="k">Analytic power</div><div class="v" id="st-power">—</div></div>
+                <div class="stat"><div class="k">Required n</div><div class="v" id="st-req">—</div></div>
+                <div class="stat"><div class="k">Empirical power</div><div class="v" id="st-emp">—</div></div>
+                <div class="stat"><div class="k">Critical value</div><div class="v" id="st-crit">—</div></div>
+                <div class="stat warn"><div class="k">Mean d | significant</div><div class="v" id="st-winner">—</div></div>
+                <div class="stat"><div class="k">Sign errors</div><div class="v" id="st-sign">—</div></div>
+                <div class="note" id="sim-note">Underpowered studies that reach significance systematically overestimate the true effect — the “winner’s curse”.</div>
+              </div>
+              <div class="canvas-wrap"><canvas id="cv-sim"></canvas></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ================================================= bias lab -->
+        <div class="module" id="mod-bias">
+          <section class="panel p-bfunnel">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>The literature</div>
+              <div class="panel-sub" id="bfunnel-sub"></div>
+              <div class="spacer"></div>
+              <div class="legend"><span><i class="box" style="background:#22d3ee"></i>published</span><span><i class="box" style="background:#3a4264"></i>file drawer</span><span><i class="box" style="background:#a3e635"></i>imputed</span></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-bfunnel"></canvas></div></div>
+          </section>
+          <section class="panel p-est">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>What would a meta-analysis conclude?</div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-est"></canvas></div></div>
+          </section>
+          <section class="panel p-pcurve">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>p-curve</div>
+              <div class="panel-sub">significant published p-values</div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-pcurve"></canvas></div></div>
+          </section>
+          <section class="panel p-bstats">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Diagnostics</div>
+            </div>
+            <div class="panel-body bstats-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Published</div><div class="v" id="bs-pub">—</div></div>
+                <div class="stat"><div class="k">Significant (published)</div><div class="v" id="bs-sig">—</div></div>
+                <div class="stat warn"><div class="k">Bias of naive estimate</div><div class="v" id="bs-bias">—</div></div>
+                <div class="stat"><div class="k">Egger's test</div><div class="v" id="bs-egger">—</div></div>
+              </div>
+              <div class="report" id="bias-report"></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How MetaLab works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>MetaLab implements the statistics behind evidence synthesis from scratch — distribution functions, estimators and
+        tests — and checks them against reference values (e.g. the BCG results reported by the <em>metafor</em> R package and
+        G*Power's power tables).</p>
+      <h3>1 · Meta-analysis</h3>
+      <p>Each study contributes an effect yᵢ with sampling variance vᵢ (log risk / odds ratio from 2×2 counts, Hedges' g from
+        means and SDs, or given directly). Studies are weighted by inverse variance:</p>
+      <div class="eq">μ̂ = Σ wᵢ yᵢ / Σ wᵢ,   wᵢ = 1 / (vᵢ + τ²),   SE(μ̂) = 1/√Σwᵢ</div>
+      <ul>
+        <li><strong>Fixed effect</strong>: τ² = 0 — one true effect.</li>
+        <li><strong>DerSimonian–Laird</strong>: moment estimator τ² = max(0, (Q − (k−1)) / (Σw − Σw²/Σw)).</li>
+        <li><strong>REML</strong>: restricted maximum likelihood, solved by Fisher scoring.</li>
+        <li><strong>Knapp–Hartung</strong>: rescales the SE and uses a t<sub>k−1</sub> reference — better coverage with few studies.</li>
+      </ul>
+      <p>Heterogeneity: Cochran's Q (χ²<sub>k−1</sub>), I² = τ² / (τ² + s̃²) and a prediction interval μ̂ ± t<sub>k−2</sub>√(τ² + SE²)
+        for the effect in a new setting.</p>
+      <h3>2 · Small-study effects</h3>
+      <ul>
+        <li><strong>Funnel plot</strong> — effect vs standard error; contours mark where p &lt; .10, .05 and .01.</li>
+        <li><strong>Egger's test</strong> — regress yᵢ/SEᵢ on 1/SEᵢ; a non-zero intercept signals asymmetry.</li>
+        <li><strong>Trim-and-fill</strong> (Duval &amp; Tweedie, L₀) — iteratively trims the asymmetric tail, re-estimates the centre
+          and imputes mirror-image “missing” studies.</li>
+        <li><strong>PET</strong> — the intercept of a weighted regression of y on SE: the effect of a hypothetical infinitely precise study.</li>
+      </ul>
+      <h3>3 · Power</h3>
+      <div class="eq">power = P(|T| &gt; t<sub>crit</sub>),   T ~ t'(ν, δ),   δ = d·√(n/2)</div>
+      <p>The non-central t CDF is integrated numerically over the χ² distribution of the variance estimate; t, χ² and incomplete
+        beta/gamma functions are computed from Lanczos log-gamma and continued fractions. Proportions use the normal approximation,
+        correlations Fisher's z.</p>
+      <h3>4 · Bias lab</h3>
+      <p>Simulates a whole research field: studies with random sizes and true effects θᵢ ~ 𝒩(δ, τ²). Significant positive results are
+        always published; the rest only with the chosen probability. p-hacking lets each study measure several outcomes and report
+        the most significant. Compare what an honest meta-analysis of <em>all</em> studies, a naive meta-analysis of the
+        <em>published</em> ones and bias-corrected methods would conclude.</p>
+      <h3>CSV format</h3>
+      <p>Header row required. Recognised columns: <code>study, year</code> plus either <code>yi, vi</code> (or <code>sei</code>),
+        2×2 counts <code>tpos, tneg, cpos, cneg</code>, or group summaries <code>m1, sd1, n1, m2, sd2, n2</code>.</p>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="meta-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

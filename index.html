@@ -4,16 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Safiullah Rahu — Interactive Engineering Portfolio</title>
-  <meta name="description" content="Eight interactive web apps across mechatronics, medical imaging, assistive robotics and AI — PID servo tuning, robot motion planning, CT and MRI reconstruction, smart-wheelchair navigation, EMG prosthetics, neural networks and neuroevolution. All written from scratch; they run in the browser." />
+  <meta name="description" content="Ten interactive web apps across mechatronics, medical imaging, assistive robotics, AI, agentic systems and research methods — PID servo tuning, robot motion planning, CT and MRI reconstruction, smart-wheelchair navigation, EMG prosthetics, neural networks, neuroevolution, LLM-agent workflow simulation and meta-analysis. All written from scratch; they run in the browser." />
   <meta property="og:title" content="Safiullah Rahu — Interactive Engineering Portfolio" />
-  <meta property="og:description" content="Mechatronics · Medical Imaging · Assistive Robotics · AI — eight simulators that run in your browser." />
+  <meta property="og:description" content="Mechatronics · Medical Imaging · Assistive Robotics · AI · Agentic Systems & Research — ten simulators that run in your browser." />
   <meta property="og:image" content="screenshots/neuroevolution-cars.png" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='20' height='20' rx='6' fill='%230e1528'/%3E%3Ccircle cx='8' cy='8' r='2.4' fill='%23fbbf24'/%3E%3Ccircle cx='16' cy='8' r='2.4' fill='%232dd4bf'/%3E%3Ccircle cx='8' cy='16' r='2.4' fill='%23a78bfa'/%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23f472b6'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="shared/css/lab.css" />
   <style>
     html, body { height: auto; }
     body { overflow-x: hidden; overflow-y: auto; }
-    .hub { --mech: #fbbf24; --med: #2dd4bf; --assist: #a78bfa; --ai: #f472b6; min-height: 100vh; }
+    .hub { --mech: #fbbf24; --med: #2dd4bf; --assist: #a78bfa; --ai: #f472b6; --res: #22d3ee; min-height: 100vh; }
     .wrap { width: min(1200px, calc(100% - 40px)); margin: 0 auto; }
 
     /* nav */
@@ -130,6 +130,7 @@
         <a href="#medical-imaging">Medical Imaging</a>
         <a href="#assistive-robotics">Assistive Robotics</a>
         <a href="#ai">AI</a>
+        <a href="#agents-research">Agents &amp; Research</a>
         <a class="gh" href="https://github.com/Safiullah-Rahu/AI-Applications" target="_blank" rel="noopener">GitHub</a>
       </div>
     </div>
@@ -139,19 +140,20 @@
     <div class="wrap">
       <div>
         <span class="eyebrow"><b></b>Interactive engineering portfolio</span>
-        <h1>Engineering simulators for <span class="grad">robots, scanners &amp; learning machines</span></h1>
-        <p class="lede">Eight hands-on web apps across mechatronics, medical imaging, assistive robotics and artificial intelligence.
-          Each one is a working simulator: tune a servo, plan a robot arm's motion, reconstruct CT and MRI scans, drive a smart wheelchair,
-          control a prosthetic hand with EMG, or watch neural networks learn. Every algorithm is written from scratch, and the apps run in your browser.</p>
+        <h1>Engineering simulators for <span class="grad">robots, scanners, agents &amp; learning machines</span></h1>
+        <p class="lede">Ten hands-on web apps across mechatronics, medical imaging, assistive robotics, artificial intelligence, agentic systems
+          and research methods. Each one is a working simulator: tune a servo, plan a robot arm's motion, reconstruct CT and MRI scans, drive a
+          smart wheelchair, control a prosthetic hand with EMG, watch neural networks learn, stress-test LLM agent workflows or run a meta-analysis.
+          Every algorithm is written from scratch, and the apps run in your browser.</p>
         <div class="hero-cta">
           <a class="btn primary" href="#mechatronics">Explore the apps</a>
           <a class="btn" href="https://github.com/Safiullah-Rahu/AI-Applications" target="_blank" rel="noopener"><i data-icon="github"></i>Source code</a>
         </div>
         <div class="facts">
-          <div class="fact"><div class="n">8</div><div class="l">interactive apps</div></div>
-          <div class="fact"><div class="n">4</div><div class="l">engineering domains</div></div>
+          <div class="fact"><div class="n">10</div><div class="l">interactive apps</div></div>
+          <div class="fact"><div class="n">5</div><div class="l">domains</div></div>
           <div class="fact"><div class="n">0</div><div class="l">runtime dependencies</div></div>
-          <div class="fact"><div class="n">13k+</div><div class="l">lines of hand-written JS</div></div>
+          <div class="fact"><div class="n">16k+</div><div class="l">lines of hand-written JS</div></div>
         </div>
       </div>
       <div class="mosaic" aria-label="App previews">
@@ -320,6 +322,46 @@
       </div>
     </section>
 
+    <!-- ============================================================ Agents & research -->
+    <section class="domain" id="agents-research" style="--c:var(--res)">
+      <div class="wrap">
+        <div class="domain-head">
+          <div class="domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9.5" width="5" height="5" rx="1.2"/><rect x="17" y="3.5" width="5" height="5" rx="1.2"/><rect x="17" y="15.5" width="5" height="5" rx="1.2"/><path d="M7 12h4M11 12V6h6M11 12v6h6"/></svg></div>
+          <h2><small>Domain 05</small>Agentic Systems &amp; Research Methods</h2>
+          <p class="blurb">Engineering AI agents as reliable systems, and the statistics that decide what research evidence is worth.</p>
+        </div>
+        <div class="cards">
+          <article class="card" style="--c:var(--res)">
+            <a class="shot" href="agentic-research/agentflow/index.html"><img loading="lazy" src="screenshots/thumbs/agentflow.jpg" alt="AgentFlow screenshot: agent workflow graph, execution trace and Monte Carlo latency analysis" /><span class="launch">Launch ↗</span></a>
+            <div class="card-body">
+              <div class="card-title">
+                <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9.5" width="5" height="5" rx="1.2"/><rect x="17" y="3.5" width="5" height="5" rx="1.2"/><rect x="17" y="15.5" width="5" height="5" rx="1.2"/><path d="M7 12h4M11 12V6h6M11 12v6h6"/></svg></div>
+                <div><h3>Agent<span>Flow</span></h3><div class="sub">Agentic workflow studio</div></div>
+              </div>
+              <p>Design LLM-agent pipelines as graphs: planners, parallel tool calls, reflection loops, routers and human approval. A discrete-event
+                simulator then measures latency, token cost and reliability under retries, timeouts, fallbacks, rate limits and caching, and
+                critical-path analysis shows where to optimise.</p>
+              <div class="tags"><span>discrete-event simulation</span><span>retries · backoff</span><span>rate limits</span><span>critical path</span><span>Monte Carlo SLOs</span></div>
+              <div class="card-actions"><a class="btn primary" href="agentic-research/agentflow/index.html">Launch app</a><a class="btn ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/agentic-research/agentflow" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a></div>
+            </div>
+          </article>
+          <article class="card" style="--c:var(--res)">
+            <a class="shot" href="agentic-research/metalab/index.html"><img loading="lazy" src="screenshots/thumbs/metalab.jpg" alt="MetaLab screenshot: forest plot, funnel plot and meta-analysis results" /><span class="launch">Launch ↗</span></a>
+            <div class="card-body">
+              <div class="card-title">
+                <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M4 10h13M4 15h7"/><path d="M15 17l3-3 3 3-3 3z"/></svg></div>
+                <div><h3>Meta<span>Lab</span></h3><div class="sub">Research synthesis, power &amp; bias workbench</div></div>
+              </div>
+              <p>Run random-effects meta-analyses (DerSimonian–Laird, REML, Knapp–Hartung) with forest and contour-enhanced funnel plots, Egger's
+                test and trim-and-fill, plan studies with exact power analysis, and simulate how publication bias and p-hacking distort a literature.</p>
+              <div class="tags"><span>REML meta-analysis</span><span>forest · funnel</span><span>trim-and-fill</span><span>non-central t power</span><span>p-curve</span></div>
+              <div class="card-actions"><a class="btn primary" href="agentic-research/metalab/index.html">Launch app</a><a class="btn ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/agentic-research/metalab" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="principles">
       <div class="wrap">
         <h2>How these apps are built</h2>
@@ -327,12 +369,12 @@
           <div class="pcard">
             <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>From first principles</h3>
             <p>There are no frameworks or numeric libraries. FFTs, reconstruction algorithms, planners, classifiers, back-propagation and the genetic
-              algorithm are all implemented by hand in plain JavaScript, so the source reads like an annotated textbook.</p>
+              algorithm, the event simulator and the meta-analytic estimators are all implemented by hand in plain JavaScript, so the source reads like an annotated textbook.</p>
           </div>
           <div class="pcard">
             <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Tested cores</h3>
             <p>Each app keeps its maths in a DOM-free <code>*-core.js</code> module that also runs in Node.js. Examples of what is checked:
-              FFT against NumPy, analytic gradients against finite differences, ray casts against brute force.</p>
+              FFT against NumPy, gradients against finite differences, meta-analysis against R's metafor, power against G*Power.</p>
           </div>
           <div class="pcard">
             <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>Runs anywhere</h3>

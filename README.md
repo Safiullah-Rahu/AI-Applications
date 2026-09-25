@@ -1,6 +1,6 @@
 # Safiullah Rahu · Interactive Engineering Portfolio
 
-**Eight interactive simulators across Mechatronics, Medical Imaging, Assistive Robotics and AI. They run in your browser.**
+**Ten interactive simulators across Mechatronics, Medical Imaging, Assistive Robotics, AI, and Agentic Systems & Research Methods. They run in your browser.**
 
 Each app is a working simulator of a real engineering problem. You can tune a servo loop, plan a robot arm's motion, reconstruct CT
 and MRI scans, drive a smart wheelchair, control a prosthetic hand with muscle signals, or watch neural networks learn by
@@ -22,6 +22,8 @@ numeric libraries and no build step, and each app's maths lives in a Node-tested
 | 🦾 Assistive Robotics | [**MyoHand**: EMG prosthetic hand controller](assistive-robotics/emg-prosthetic-hand/) | 8-channel sEMG · Hudgins features · LDA / k-NN / MLP · proportional hand control |
 | 🤖 AI | [**NeuroPlayground**: neural networks from scratch](ai/neural-network-playground/) | back-propagation · Adam · activation maps · decision boundaries · gradient flow |
 | 🤖 AI | [**EvoDrive**: neuroevolution self-driving cars](ai/neuroevolution-cars/) | genetic algorithm · ray sensors · grip-limited physics · procedural tracks · race the AI |
+| 🧩 Agentic Systems | [**AgentFlow**: agentic workflow studio](agentic-research/agentflow/) | LLM-agent DAGs · discrete-event simulation · retries, timeouts, rate limits · critical path · Monte Carlo SLOs |
+| 📊 Research Methods | [**MetaLab**: research synthesis, power & bias workbench](agentic-research/metalab/) | REML meta-analysis · forest & funnel plots · trim-and-fill · exact power · publication-bias simulation |
 
 ---
 
@@ -94,16 +96,35 @@ gradient and no training data. The cars have ray-cast sensors, grip-limited phys
 brain view. You can test generalisation on new tracks, then race the champion yourself.
 **[Open app](ai/neuroevolution-cars/index.html) · [Details](ai/neuroevolution-cars/README.md)**
 
+## 🧩 Agentic Systems & 📊 Research Methods
+
+### AgentFlow: Agentic Workflow Studio
+[![AgentFlow](screenshots/agentflow.png)](agentic-research/agentflow/)
+
+Design LLM-agent pipelines as graphs: planners, parallel tool calls, reflection loops, routers and human approval. A discrete-event
+simulator runs thousands of executions with realistic latency, token cost and failures, under retries with jittered backoff, timeouts,
+model fallback, a provider rate limit and caching. It reports the success rate, p50/p95 latency and cost per run, and critical-path analysis
+shows which step to optimise. Includes deep-research, support-triage, coding-agent and multi-agent-debate workflows, A/B baselines,
+an execution trace and JSON import/export. **[Open app](agentic-research/agentflow/index.html) · [Details](agentic-research/agentflow/README.md)**
+
+### MetaLab: Research Synthesis, Power & Bias Workbench
+[![MetaLab](screenshots/metalab.png)](agentic-research/metalab/)
+
+This is the statistics of evidence synthesis. It runs fixed- and random-effects meta-analysis (DerSimonian–Laird, REML, Knapp–Hartung) with forest plots,
+contour-enhanced funnel plots, Egger's test, trim-and-fill, leave-one-out and cumulative views, and it writes the results paragraph for you.
+It also does exact power analysis with the non-central t and a Monte Carlo check, and simulates how the file drawer and p-hacking
+distort a literature. Its results match R's metafor and G*Power. **[Open app](agentic-research/metalab/index.html) · [Details](agentic-research/metalab/README.md)**
+
 ---
 
 ## Engineering notes
 
 - **Written from scratch.** FFTs, Radon transforms, reconstruction algorithms, distance transforms, planners, classifiers,
-  back-propagation and the genetic algorithm are all hand-written. The source is meant to be read.
+  back-propagation, the genetic algorithm, the discrete-event agent simulator and the meta-analytic estimators are all hand-written. The source is meant to be read.
 - **Separated cores.** Each app keeps its maths in a DOM-free `*-core.js` module (loadable in Node or the browser) and its UI
   in `app.js`. The design system and plotting live in [`shared/`](shared/).
-- **Tested.** [`tests/run-tests.js`](tests/run-tests.js) checks the cores against analytic results, brute-force references and finite differences.
-  It runs 34 tests covering all 8 apps in about 5 s with no dependencies.
+- **Tested.** [`tests/run-tests.js`](tests/run-tests.js) checks the cores against analytic results, brute-force references, finite differences and reference software (metafor, G*Power).
+  It runs 45 tests covering all 10 apps in about 5 s with no dependencies.
 - **Static and portable.** The apps are plain HTML, CSS and JS with self-hosted fonts. They work from `file://`, any static server or GitHub Pages,
   offline, with no API keys.
 
@@ -154,6 +175,9 @@ assistive-robotics/
 ai/
   neural-network-playground/   NeuroPlayground
   neuroevolution-cars/         EvoDrive
+agentic-research/
+  agentflow/                   AgentFlow
+  metalab/                     MetaLab
 tests/run-tests.js             core-module test suite
 tools/screenshots.js           screenshot generator (Playwright)
 screenshots/                   README and hub images
