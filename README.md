@@ -1,6 +1,6 @@
 # Safiullah Rahu · Interactive Engineering Portfolio
 
-**Ten interactive simulators across Mechatronics, Medical Imaging, Assistive Robotics, AI, and Agentic Systems & Research Methods. They run in your browser.**
+**Twelve interactive simulators across Mechatronics, Medical Imaging, Assistive Robotics, AI, Agentic Systems & Research Methods, and Connected Health & Energy. They run in your browser.**
 
 Each app is a working simulator of a real engineering problem. You can tune a servo loop, plan a robot arm's motion, reconstruct CT
 and MRI scans, drive a smart wheelchair, control a prosthetic hand with muscle signals, or watch neural networks learn by
@@ -24,6 +24,8 @@ numeric libraries and no build step, and each app's maths lives in a Node-tested
 | 🤖 AI | [**EvoDrive**: neuroevolution self-driving cars](ai/neuroevolution-cars/) | genetic algorithm · ray sensors · grip-limited physics · procedural tracks · race the AI |
 | 🧩 Agentic Systems | [**AgentFlow**: agentic workflow studio](agentic-research/agentflow/) | LLM-agent DAGs · discrete-event simulation · retries, timeouts, rate limits · critical path · Monte Carlo SLOs |
 | 📊 Research Methods | [**MetaLab**: research synthesis, power & bias workbench](agentic-research/metalab/) | REML meta-analysis · forest & funnel plots · trim-and-fill · exact power · publication-bias simulation |
+| 🔋 Energy Systems | [**VoltWise**: EV battery management system](health-energy/battery-bms/) | Thevenin cell model · drive cycles · SOC estimation with EKFs · CC-CV charging · cell balancing |
+| 🩺 Digital Health | [**FallGuard**: wearable fall detection & alerting](health-energy/fallguard/) | accelerometer models · threshold / state-machine / learned detectors · alert escalation · sensitivity vs false alarms/day |
 
 ---
 
@@ -115,6 +117,25 @@ contour-enhanced funnel plots, Egger's test, trim-and-fill, leave-one-out and cu
 It also does exact power analysis with the non-central t and a Monte Carlo check, and simulates how the file drawer and p-hacking
 distort a literature. Its results match R's metafor and G*Power. **[Open app](agentic-research/metalab/index.html) · [Details](agentic-research/metalab/README.md)**
 
+## 🔋 Connected Health & Energy
+
+### VoltWise: EV Battery Management System
+[![VoltWise](screenshots/battery-bms.png)](health-energy/battery-bms/)
+
+Drive an EV through city, highway and sporty cycles on a 96-cell pack of equivalent-circuit Li-ion cells with thermal behaviour and
+manufacturing spread. Four state-of-charge estimators run side by side: coulomb counting, voltage lookup, an extended Kalman filter
+with a ±3σ band, and an EKF that learns the current-sensor offset. You can inject a wrong initial SOC, sensor bias, noise and cell ageing, then charge
+with CC-CV and watch passive balancing recover capacity stranded by the weakest cell.
+**[Open app](health-energy/battery-bms/index.html) · [Details](health-energy/battery-bms/README.md)**
+
+### FallGuard: Wearable Fall Detection & Alerting
+[![FallGuard](screenshots/fallguard.png)](health-energy/fallguard/)
+
+A waist-worn accelerometer streams an older adult's day. Four detectors (impact threshold, posture checks, the classic free-fall state
+machine and a learned model) drive an "Are you OK?" countdown and caregiver escalation. The benchmark reproduces a known real-world
+finding: algorithms tuned on simulated lab falls lose much of their sensitivity on real falls of older adults, and every threshold trades
+missed falls for false alarms per day. **[Open app](health-energy/fallguard/index.html) · [Details](health-energy/fallguard/README.md)**
+
 ---
 
 ## Engineering notes
@@ -124,7 +145,7 @@ distort a literature. Its results match R's metafor and G*Power. **[Open app](ag
 - **Separated cores.** Each app keeps its maths in a DOM-free `*-core.js` module (loadable in Node or the browser) and its UI
   in `app.js`. The design system and plotting live in [`shared/`](shared/).
 - **Tested.** [`tests/run-tests.js`](tests/run-tests.js) checks the cores against analytic results, brute-force references, finite differences and reference software (metafor, G*Power).
-  It runs 45 tests covering all 10 apps in about 5 s with no dependencies.
+  It runs 55 tests covering all 12 apps in about 5 s with no dependencies.
 - **Static and portable.** The apps are plain HTML, CSS and JS with self-hosted fonts. They work from `file://`, any static server or GitHub Pages,
   offline, with no API keys.
 
@@ -178,6 +199,9 @@ ai/
 agentic-research/
   agentflow/                   AgentFlow
   metalab/                     MetaLab
+health-energy/
+  battery-bms/                 VoltWise
+  fallguard/                   FallGuard
 tests/run-tests.js             core-module test suite
 tools/screenshots.js           screenshot generator (Playwright)
 screenshots/                   README and hub images
