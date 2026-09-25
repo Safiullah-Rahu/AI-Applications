@@ -13,7 +13,7 @@
   <style>
     html, body { height: auto; }
     body { overflow-x: hidden; overflow-y: auto; }
-    .hub { --mech: #fbbf24; --med: #2dd4bf; --assist: #a78bfa; --ai: #f472b6; --res: #22d3ee; --hle: #34d399; min-height: 100vh; }
+    .hub { --mech: #fbbf24; --med: #2dd4bf; --assist: #a78bfa; --ai: #f472b6; --res: #22d3ee; --hle: #34d399; --tool: #818cf8; min-height: 100vh; }
     .wrap { width: min(1200px, calc(100% - 40px)); margin: 0 auto; }
 
     /* nav */
@@ -78,6 +78,9 @@
     .shot .launch { position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; color: var(--accent-ink); background: var(--c); padding: 7px 12px; border-radius: 9px; opacity: 0; transform: translateY(6px); transition: all 0.2s; }
     .card:hover .shot .launch, .shot:focus-visible .launch { opacity: 1; transform: none; }
     .card-body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .card.wide { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+    .card.wide .shot { border-bottom: none; border-right: 1px solid var(--border); height: 100%; }
+    .card.wide .card-body { justify-content: center; padding: 22px 26px; }
     .card-title { display: flex; align-items: center; gap: 10px; }
     .card-title .ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); flex: none; }
     .card-title .ic svg { width: 19px; height: 19px; }
@@ -114,6 +117,8 @@
     }
     @media (max-width: 720px) {
       .cards { grid-template-columns: 1fr; }
+      .card.wide { display: flex; }
+      .card.wide .shot { border-right: none; border-bottom: 1px solid var(--border); height: auto; }
       .nav-links a:not(.gh) { display: none; }
       .facts { grid-template-columns: repeat(2, auto); gap: 18px 30px; }
       .hero { padding-top: 44px; }
@@ -132,6 +137,7 @@
         <a href="#ai">AI</a>
         <a href="#agents-research">Agents &amp; Research</a>
         <a href="#health-energy">Health &amp; Energy</a>
+        <a href="#everyday-tools">Tools</a>
         <a class="gh" href="https://github.com/Safiullah-Rahu/AI-Applications" target="_blank" rel="noopener">GitHub</a>
       </div>
     </div>
@@ -142,20 +148,20 @@
       <div>
         <span class="eyebrow"><b></b>Interactive engineering portfolio</span>
         <h1>Engineering simulators for <span class="grad">robots, scanners, agents &amp; learning machines</span></h1>
-        <p class="lede">Twelve hands-on web apps across mechatronics, medical imaging, assistive robotics, artificial intelligence, agentic systems,
-          research methods, digital health and energy. Each one is a working simulator: tune a servo, plan a robot arm's motion, reconstruct CT and MRI
+        <p class="lede">Thirteen hands-on web apps across mechatronics, medical imaging, assistive robotics, artificial intelligence, agentic systems,
+          research methods, digital health, energy and everyday tools. Each one is a working simulator: tune a servo, plan a robot arm's motion, reconstruct CT and MRI
           scans, drive a smart wheelchair, control a prosthetic hand with EMG, watch neural networks learn, stress-test LLM agent workflows, run a
-          meta-analysis, manage an EV battery pack or catch falls with a wearable.
+          meta-analysis, manage an EV battery pack, catch falls with a wearable, or sign a PDF privately.
           Every algorithm is written from scratch, and the apps run in your browser.</p>
         <div class="hero-cta">
           <a class="btn primary" href="#mechatronics">Explore the apps</a>
           <a class="btn" href="https://github.com/Safiullah-Rahu/AI-Applications" target="_blank" rel="noopener"><i data-icon="github"></i>Source code</a>
         </div>
         <div class="facts">
-          <div class="fact"><div class="n">12</div><div class="l">interactive apps</div></div>
-          <div class="fact"><div class="n">6</div><div class="l">domains</div></div>
-          <div class="fact"><div class="n">0</div><div class="l">runtime dependencies</div></div>
-          <div class="fact"><div class="n">17k+</div><div class="l">lines of hand-written JS</div></div>
+          <div class="fact"><div class="n">13</div><div class="l">interactive apps</div></div>
+          <div class="fact"><div class="n">7</div><div class="l">domains</div></div>
+          <div class="fact"><div class="n">0</div><div class="l">build steps or servers</div></div>
+          <div class="fact"><div class="n">18k+</div><div class="l">lines of hand-written JS</div></div>
         </div>
       </div>
       <div class="mosaic" aria-label="App previews">
@@ -399,6 +405,34 @@
                 simulated lab falls miss real ones, trading sensitivity against false alarms per day.</p>
               <div class="tags"><span>IMU signal models</span><span>state machine</span><span>logistic regression</span><span>sensitivity vs false alarms</span><span>alert escalation</span></div>
               <div class="card-actions"><a class="btn primary" href="health-energy/fallguard/index.html">Launch app</a><a class="btn ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/health-energy/fallguard" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ Everyday tools -->
+    <section class="domain" id="everyday-tools" style="--c:var(--tool)">
+      <div class="wrap">
+        <div class="domain-head">
+          <div class="domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16c3-1 4-9 6-9s-1 9 1 9 3-6 5-6 0 4 2 4 2-2 4-2"/><path d="M3 20.5h18" opacity=".55"/></svg></div>
+          <h2><small>Domain 07</small>Everyday Tools</h2>
+          <p class="blurb">Practical software for daily paperwork, built with the same care: private by design, it works offline and needs no account.</p>
+        </div>
+        <div class="cards">
+          <article class="card wide" style="--c:var(--tool)">
+            <a class="shot" href="everyday-tools/inksign/index.html"><img loading="lazy" src="screenshots/thumbs/inksign.jpg" alt="InkSign screenshot: a contract signed with a drawn signature, name, date, checkmark and initials" /><span class="launch">Launch ↗</span></a>
+            <div class="card-body">
+              <div class="card-title">
+                <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M7 17c1.5-.5 2-3 3-3s0 3 1 3 1.5-2 2.5-2 .5 1.5 1.5 1.5"/></svg></div>
+                <div><h3>Ink<span>Sign</span></h3><div class="sub">Create a signature &amp; sign documents</div></div>
+              </div>
+              <p>Draw your signature with a speed-sensitive pen, type it in a handwriting font, or photograph it on paper and let the app remove the
+                background. Then open a PDF or a photo of a document and place your signature, initials on every page, name, date, text and checkmarks.
+                Download the signed PDF with an optional signing certificate that records the time and the SHA-256 fingerprint of the original, or export the
+                signature as a transparent PNG or SVG. Nothing is uploaded.</p>
+              <div class="tags"><span>pdf.js + pdf-lib</span><span>velocity-width ink</span><span>Otsu background removal</span><span>rotated-page mapping</span><span>SHA-256 audit page</span><span>100 % on-device</span></div>
+              <div class="card-actions"><a class="btn primary" href="everyday-tools/inksign/index.html">Launch app</a><a class="btn ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/everyday-tools/inksign" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a></div>
             </div>
           </article>
         </div>

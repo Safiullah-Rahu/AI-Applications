@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>InkSign — Create, Apply &amp; Export Signatures</title>
+  <meta name="description" content="Create a handwritten, typed or scanned signature, then sign PDFs and images: place signatures, initials, dates and text, and download a signed PDF with an optional signing certificate. Everything runs in your browser — files never leave your device." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 17c3-1 4-9 6-9s-1 9 1 9 3-6 5-6 0 4 2 4 2-2 4-2' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M3 21h18' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    @font-face { font-family: 'Great Vibes'; src: url('fonts/GreatVibes.woff2') format('woff2'); font-display: swap; }
+    @font-face { font-family: 'Dancing Script'; src: url('fonts/DancingScript.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+    @font-face { font-family: 'Caveat'; src: url('fonts/Caveat.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+    @font-face { font-family: 'Allura'; src: url('fonts/Allura.woff2') format('woff2'); font-display: swap; }
+    @font-face { font-family: 'Sacramento'; src: url('fonts/Sacramento.woff2') format('woff2'); font-display: swap; }
+
+    .hidden { display: none !important; }
+    .main { display: flex; flex-direction: column; gap: 12px; }
+    .tabs { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .tabs .seg button { padding: 7px 14px; font-size: 13px; }
+    .tabs .privacy { margin-left: auto; font-size: 12px; color: var(--text-2); display: inline-flex; align-items: center; gap: 7px; }
+    .tabs .privacy svg { width: 15px; height: 15px; color: var(--good); }
+    .view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+
+    /* ---------- studio */
+    .studio { display: grid; gap: 12px; align-items: start; grid-template-columns: minmax(0, 1fr) 330px; grid-template-rows: auto minmax(0, 1fr); flex: 1; min-height: 0; }
+    .p-pad { grid-column: 1; grid-row: 1 / span 2; min-height: 0; }
+    .p-out { grid-column: 2; grid-row: 1 / span 2; }
+    .pad-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+    .paper { position: relative; background: #fbfaf7; border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06), 0 12px 30px rgba(0,0,0,.35); aspect-ratio: 3 / 1.15; min-height: 200px; overflow: hidden; }
+    .paper canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+    .paper .guide { position: absolute; left: 7%; right: 7%; bottom: 26%; border-bottom: 1.5px solid #cbd5e1; pointer-events: none; }
+    .paper .guide::before { content: '×'; position: absolute; left: -4px; bottom: 2px; font: 600 22px var(--font-sans); color: #94a3b8; }
+    .paper .guide span { position: absolute; right: 0; top: 6px; font: 600 10.5px var(--font-sans); letter-spacing: .12em; text-transform: uppercase; color: #94a3b8; }
+    .paper .empty { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: #94a3b8; font-size: 15px; }
+    .paper.checker { background-color: #fff; background-image: linear-gradient(45deg, #eef0f4 25%, transparent 25%), linear-gradient(-45deg, #eef0f4 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #eef0f4 75%), linear-gradient(-45deg, transparent 75%, #eef0f4 75%); background-size: 18px 18px; background-position: 0 0, 0 9px, 9px -9px, -9px 0; }
+    .paper.dragging { box-shadow: inset 0 0 0 3px var(--accent), 0 12px 30px rgba(0,0,0,.35); }
+    .fonts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+    .font-card { background: #fbfaf7; color: #111827; border-radius: 10px; border: 2px solid transparent; padding: 10px 12px 8px; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .font-card .sample { font-size: 34px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .font-card .nm { font: 600 10.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: #64748b; }
+    .font-card.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .upload-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--text-2); }
+    .out-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+    .out-prev { border-radius: 10px; aspect-ratio: 16 / 7; display: grid; place-items: center; padding: 12px; }
+    .out-prev img { max-width: 100%; max-height: 100%; }
+    .out-prev .none { color: #94a3b8; font-size: 12.5px; }
+    .usage { background: #fbfaf7; color: #111827; border-radius: 10px; padding: 12px 14px 10px; font: 11px/1.5 Georgia, 'Times New Roman', serif; position: relative; }
+    .usage .line { display: flex; gap: 14px; align-items: flex-end; margin-top: 8px; }
+    .usage .blk { flex: 1; min-width: 0; }
+    .usage .sig { height: 44px; border-bottom: 1px solid #334155; display: flex; align-items: flex-end; }
+    .usage .sig img { max-height: 52px; max-width: 100%; margin-bottom: -6px; }
+    .usage .cap { font: 600 8.5px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: #64748b; margin-top: 3px; }
+    .usage .dt { font: 13px var(--font-sans); padding-bottom: 3px; }
+
+    /* ---------- document */
+    .p-doc { flex: 1; min-height: 480px; }
+    .doc-head .seg button { padding: 5px 10px; }
+    .doc-body { overflow: auto; background: #0a0f1d; }
+    .pages { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 22px 16px 60px; }
+    .page { position: relative; background: #fff; box-shadow: 0 10px 28px rgba(0,0,0,.5); flex: none; }
+    .page canvas { display: block; width: 100%; height: 100%; }
+    .page .pno { position: absolute; top: -17px; right: 0; font: 11px var(--font-mono); color: var(--muted); }
+    .page.armed { cursor: copy; }
+    .page.armed::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--accent); pointer-events: none; }
+    .item { position: absolute; touch-action: none; cursor: grab; user-select: none; }
+    .item img { width: 100%; height: 100%; display: block; pointer-events: none; }
+    .item .txt { position: absolute; inset: 0; white-space: pre; font-family: Helvetica, Arial, 'Liberation Sans', sans-serif; pointer-events: none; }
+    .item:hover { outline: 1px dashed rgba(99,102,241,.7); }
+    .item.sel { outline: 1.5px solid #6366f1; background: rgba(99,102,241,.07); }
+    .item .h { display: none; position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px; border-radius: 50%; background: #6366f1; border: 2px solid #fff; cursor: nwse-resize; }
+    .item .x { display: none; position: absolute; right: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: #ef4444; color: #fff; border: 2px solid #fff; font: 700 11px/14px var(--font-sans); text-align: center; cursor: pointer; }
+    .item.sel .h, .item.sel .x { display: block; }
+    .drop { margin: auto; max-width: 560px; width: calc(100% - 32px); border: 2px dashed var(--border-2); border-radius: 16px; padding: 38px 26px; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; background: var(--panel-2); }
+    .drop h3 { font-size: 18px; }
+    .drop p { margin: 0; color: var(--text-2); font-size: 13px; max-width: 430px; }
+    .drop .btn-row { justify-content: center; }
+    .drop .btn-row > .btn { flex: none; }
+    .drop.over, .doc-body.over .drop { border-color: var(--accent); background: var(--accent-soft); }
+    .drop .fmts { font-size: 11.5px; color: var(--muted); }
+
+    /* ---------- sidebar */
+    .swatches { display: flex; gap: 8px; align-items: center; }
+    .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border-2); cursor: pointer; padding: 0; }
+    .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+    .swatches input[type=color] { width: 30px; height: 30px; border: none; background: none; padding: 0; cursor: pointer; }
+    .text-in { width: 100%; background: var(--inset); border: 1px solid var(--border-2); color: var(--text); border-radius: 8px; padding: 7px 10px; font: 13px var(--font-sans); }
+    .text-in:focus { outline: none; border-color: var(--accent); }
+    .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .tools .btn { justify-content: flex-start; font-size: 12.5px; padding: 8px 9px; min-width: 0; }
+    .tools .btn .thumb { height: 18px; max-width: 62px; margin-left: auto; background: #fbfaf7; border-radius: 4px; padding: 1px 3px; }
+    .tools .btn .gl { width: 16px; text-align: center; font-weight: 700; color: var(--accent); flex: none; }
+    .lib { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .lib-item { position: relative; background: #fbfaf7; border-radius: 9px; border: 2px solid transparent; height: 62px; display: grid; place-items: center; cursor: pointer; padding: 6px; }
+    .lib-item img { max-width: 100%; max-height: 44px; }
+    .lib-item .tag { position: absolute; left: 5px; top: 3px; font: 700 8.5px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: #64748b; }
+    .lib-item.active { border-color: var(--accent); }
+    .lib-item.active .tag { color: #4f46e5; }
+    .lib-item .del { position: absolute; right: 3px; top: 2px; border: none; background: none; color: #94a3b8; font-size: 14px; cursor: pointer; line-height: 1; padding: 2px 4px; }
+    .lib-item .del:hover { color: #ef4444; }
+    .lib-empty { font-size: 12px; color: var(--muted); grid-column: 1 / -1; }
+    .done { border: 1px solid rgba(52,211,153,.35); background: rgba(52,211,153,.07); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--text-2); display: flex; flex-direction: column; gap: 4px; }
+    .done b { color: var(--good); }
+    .done code { word-break: break-all; font-size: 10.5px; color: var(--text); }
+    .sel-info { font-size: 12px; color: var(--text-2); }
+    .sidebar .note { margin-top: 6px; }
+
+    @media (max-width: 1100px) {
+      .studio { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+      .p-pad, .p-out { grid-column: 1; grid-row: auto; }
+    }
+    .mbar { display: none; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); background: var(--panel-2); overflow-x: auto; }
+    .mbar .btn { flex: none; font-size: 12px; padding: 7px 10px; }
+    @media (max-width: 860px) {
+      .tabs .privacy { margin-left: 0; }
+      .p-doc { min-height: 0; height: 78vh; }
+      .doc-head { flex-wrap: wrap; row-gap: 8px; }
+      .doc-head .panel-sub { display: none; }
+      .doc-head .seg { flex-wrap: nowrap; }
+      .mbar { display: flex; }
+      .font-card .sample { font-size: 28px; }
+    }
+  </style>
+</head>
+<body data-domain="tools">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16c3-1 4-9 6-9s-1 9 1 9 3-6 5-6 0 4 2 4 2-2 4-2"/><path d="M3 20.5h18" opacity=".55"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Ink<span class="accent">Sign</span></div>
+          <div class="brand-sub">Create a signature, sign PDFs &amp; images, export — privately, in your browser</div>
+        </div>
+      </div>
+      <span class="chip">Everyday tool</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/everyday-tools/inksign" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <!-- ============ studio sidebar ============ -->
+        <section class="section for-studio">
+          <div class="section-title">Create by</div>
+          <div class="seg" id="seg-mode">
+            <button data-value="draw" class="active">Drawing</button>
+            <button data-value="type">Typing</button>
+            <button data-value="upload">Photo / scan</button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <div class="field-row"><span class="label">Making your</span></div>
+            <div class="seg no-dot" id="seg-kind">
+              <button data-value="sig" class="active">Signature</button>
+              <button data-value="ini">Initials</button>
+            </div>
+          </div>
+        </section>
+        <section class="section for-studio">
+          <div class="section-title">Ink</div>
+          <div class="swatches" id="swatches">
+            <button class="swatch" data-color="#111827" style="background:#111827" title="Black"></button>
+            <button class="swatch" data-color="#1d4ed8" style="background:#1d4ed8" title="Blue"></button>
+            <button class="swatch" data-color="#1e3a8a" style="background:#1e3a8a" title="Navy"></button>
+            <button class="swatch" data-color="#7f1d1d" style="background:#7f1d1d" title="Burgundy"></button>
+            <input type="color" id="ink-custom" value="#0f766e" title="Custom colour" />
+          </div>
+          <div class="field mode-draw" style="margin-top:12px">
+            <div class="field-row"><label for="sl-pen">Pen size</label><span class="value" data-value-for="sl-pen"></span></div>
+            <input type="range" id="sl-pen" min="0.5" max="2.2" step="0.05" value="1" />
+          </div>
+          <div class="field mode-draw">
+            <div class="field-row"><label for="sl-press">Speed sensitivity</label><span class="value" data-value-for="sl-press"></span></div>
+            <input type="range" id="sl-press" min="0" max="1" step="0.05" value="0.65" />
+            <div class="help">Fast strokes get thinner, like a fountain pen. Uses real pen pressure when a stylus reports it.</div>
+          </div>
+          <div class="field mode-type" style="margin-top:12px">
+            <div class="field-row"><label for="in-name">Your full name</label></div>
+            <input class="text-in" id="in-name" value="Safiullah Rahu" autocomplete="name" />
+          </div>
+          <div class="field mode-type">
+            <div class="field-row"><label for="sl-slant">Slant</label><span class="value" data-value-for="sl-slant"></span></div>
+            <input type="range" id="sl-slant" min="-10" max="20" step="1" value="0" />
+          </div>
+          <div class="field mode-upload" style="margin-top:12px">
+            <div class="field-row"><label for="sl-thr">Paper cut-off</label><span class="value" data-value-for="sl-thr"></span></div>
+            <input type="range" id="sl-thr" min="60" max="250" step="1" value="170" />
+            <div class="help">Pixels brighter than this become transparent. <a href="#" id="btn-auto">Auto (Otsu)</a></div>
+          </div>
+          <label class="switch mode-upload">Recolour ink to the swatch<input type="checkbox" id="tg-recolor" checked /><span class="track"></span></label>
+        </section>
+
+        <!-- ============ document sidebar ============ -->
+        <section class="section for-doc">
+          <div class="section-title">Signer</div>
+          <div class="field">
+            <div class="field-row"><label for="in-signer">Name</label></div>
+            <input class="text-in" id="in-signer" value="Safiullah Rahu" autocomplete="name" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="in-email">Email <span class="muted">(optional, certificate only)</span></label></div>
+            <input class="text-in" id="in-email" placeholder="you@example.com" autocomplete="email" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sel-date">Date format</label></div>
+            <select id="sel-date"></select>
+          </div>
+        </section>
+        <section class="section for-doc">
+          <div class="section-title">Add to document <span class="hint">pick, then click the page</span></div>
+          <div class="tools" id="tools">
+            <button class="btn" data-tool="sig"><span class="gl">✍</span>Signature<img class="thumb hidden" id="thumb-sig" alt="" /></button>
+            <button class="btn" data-tool="ini"><span class="gl">AB</span>Initials<img class="thumb hidden" id="thumb-ini" alt="" /></button>
+            <button class="btn" data-tool="name"><span class="gl">Aa</span>Name</button>
+            <button class="btn" data-tool="date"><span class="gl">31</span>Date</button>
+            <button class="btn" data-tool="text"><span class="gl">T</span>Text</button>
+            <button class="btn" data-tool="check"><span class="gl">✓</span>Checkmark</button>
+          </div>
+          <button class="btn block" id="btn-initial-all" style="margin-top:8px">Initial every page</button>
+        </section>
+        <section class="section for-doc" id="sec-selected">
+          <div class="section-title">Selected field <span class="hint"><kbd>←↑→↓</kbd> nudge · <kbd>Del</kbd></span></div>
+          <div class="sel-info" id="sel-info">Nothing selected — click a field on the page.</div>
+          <div class="field hidden" id="sel-text-wrap" style="margin-top:10px">
+            <input class="text-in" id="sel-text" />
+          </div>
+          <div class="btn-row hidden" id="sel-actions" style="margin-top:10px">
+            <button class="btn sm" id="btn-dup">Copy to all pages</button>
+            <button class="btn sm danger" id="btn-del"><i data-icon="trash"></i>Delete</button>
+          </div>
+        </section>
+        <section class="section for-doc">
+          <div class="section-title">Finish</div>
+          <label class="switch">Append a signing certificate page<input type="checkbox" id="tg-cert" checked /><span class="track"></span></label>
+          <button class="btn primary block" id="btn-export" style="margin-top:6px"><i data-icon="download"></i>Download signed PDF</button>
+          <button class="btn block" id="btn-export-img" style="margin-top:8px"><i data-icon="download"></i>Current page as PNG</button>
+          <div class="done hidden" id="done" style="margin-top:10px"></div>
+        </section>
+
+        <!-- ============ shared ============ -->
+        <section class="section">
+          <div class="section-title">My signatures <span class="hint" id="lib-count"></span></div>
+          <div class="lib" id="lib"></div>
+          <label class="switch" style="margin-top:10px">Remember on this device<input type="checkbox" id="tg-remember" checked /><span class="track"></span></label>
+          <div class="note"><b>Private by design.</b> Documents and signatures are processed entirely in your browser. Nothing is uploaded; saved signatures stay in this browser's storage only.</div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="tabs">
+          <div class="seg" id="seg-tab">
+            <button data-value="studio" class="active">① Create signature</button>
+            <button data-value="doc">② Sign a document</button>
+          </div>
+          <span class="privacy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Offline &amp; on-device · no uploads</span>
+        </div>
+
+        <!-- ============ studio view ============ -->
+        <div class="view" id="view-studio">
+          <div class="studio">
+            <section class="panel p-pad">
+              <div class="panel-head">
+                <div class="panel-title"><span class="dot"></span><span id="pad-title">Draw your signature</span></div>
+                <div class="panel-sub" id="pad-sub"></div>
+                <div class="spacer"></div>
+                <button class="btn sm ghost mode-draw" id="btn-undo" title="Undo (Ctrl+Z)"><i data-icon="reset"></i>Undo</button>
+                <button class="btn sm ghost" id="btn-clear"><i data-icon="eraser"></i>Clear</button>
+              </div>
+              <div class="panel-body pad-body">
+                <div class="paper" id="paper">
+                  <div class="guide"><span id="guide-label">Sign above the line</span></div>
+                  <canvas id="cv-pad"></canvas>
+                  <div class="empty hidden" id="pad-empty"></div>
+                </div>
+                <div class="upload-row mode-upload">
+                  <input type="file" id="file-sig" accept="image/*" class="hidden" />
+                  <button class="btn" id="btn-pick-sig"><i data-icon="camera"></i>Choose a photo or scan</button>
+                  <span>Sign on white paper, take a well-lit photo, and drop it here. The paper is removed automatically.</span>
+                </div>
+                <div class="fonts mode-type" id="fonts"></div>
+                <div class="usage-wrap mode-draw tiny muted" style="font-size:12px">Tip: sign with a finger or stylus on a phone or tablet for the most natural result. <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes the last stroke.</div>
+              </div>
+            </section>
+            <section class="panel p-out">
+              <div class="panel-head">
+                <div class="panel-title"><span class="dot"></span>Result</div>
+                <div class="panel-sub" id="out-sub"></div>
+              </div>
+              <div class="panel-body out-body">
+                <div class="out-prev paper checker" id="out-prev"><span class="none">Your signature will appear here</span></div>
+                <button class="btn primary block" id="btn-save"><i data-icon="pin"></i><span>Save &amp; use for signing</span></button>
+                <div class="btn-row">
+                  <button class="btn sm" id="btn-png"><i data-icon="download"></i>PNG</button>
+                  <button class="btn sm" id="btn-svg" title="Vector export of drawn signatures"><i data-icon="download"></i>SVG</button>
+                  <button class="btn sm" id="btn-copy">Copy</button>
+                </div>
+                <div class="sub-title muted" style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">How it will look</div>
+                <div class="usage">
+                  <div>IN WITNESS WHEREOF, the parties have executed this Agreement as of the date written below.</div>
+                  <div class="line">
+                    <div class="blk" style="flex:1.6"><div class="sig" id="usage-sig"></div><div class="cap">Signature</div></div>
+                    <div class="blk"><div class="sig"><span class="dt" id="usage-date"></span></div><div class="cap">Date</div></div>
+                  </div>
+                </div>
+                <div class="help muted" style="font-size:11.5px">PNG is transparent and trimmed at 3× resolution — ready for Word, Google Docs, email footers or any PDF editor.</div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- ============ document view ============ -->
+        <div class="view hidden" id="view-doc">
+          <section class="panel p-doc">
+            <div class="panel-head doc-head">
+              <div class="panel-title"><span class="dot"></span><span id="doc-title">No document</span></div>
+              <div class="panel-sub" id="doc-sub"></div>
+              <div class="spacer"></div>
+              <div class="seg no-dot" id="seg-zoom">
+                <button data-value="0.75">75%</button>
+                <button data-value="1" class="active">Fit</button>
+                <button data-value="1.5">150%</button>
+              </div>
+              <input type="file" id="file-doc" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp" class="hidden" />
+              <button class="btn sm" id="btn-open"><i data-icon="upload"></i>Open</button>
+            </div>
+            <div class="panel-body doc-body" id="doc-body">
+              <div class="pages" id="pages">
+                <div class="drop" id="drop">
+                  <h3>Drop a PDF or image to sign</h3>
+                  <p>Contracts, forms, offer letters, invoices, permission slips… Add your signature, initials, date and text, then download the signed PDF.</p>
+                  <div class="btn-row">
+                    <button class="btn primary" id="btn-open2"><i data-icon="upload"></i>Open a file</button>
+                    <button class="btn" id="btn-sample"><i data-icon="sparkle"></i>Try a sample contract</button>
+                  </div>
+                  <div class="fmts">PDF · JPG · PNG · WebP — processed locally, never uploaded</div>
+                </div>
+              </div>
+            </div>
+            <div class="mbar" id="mbar">
+              <button class="btn" data-proxy="sig">✍ Sign</button>
+              <button class="btn" data-proxy="ini">Initials</button>
+              <button class="btn" data-proxy="name">Name</button>
+              <button class="btn" data-proxy="date">Date</button>
+              <button class="btn" data-proxy="text">Text</button>
+              <button class="btn" data-proxy="check">✓</button>
+              <button class="btn primary" data-proxy="export"><i data-icon="download"></i>PDF</button>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How InkSign works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>InkSign handles the everyday cases: signing a lease or offer letter someone emailed you, initialling every page of a contract,
+        filling in a date, or getting a clean transparent signature image for Word, Google Docs or an email footer. No account, no
+        upload, no watermark.</p>
+      <h3>1 · Create a signature</h3>
+      <ul>
+        <li><strong>Drawing</strong>: every stroke is sampled with its timing (and stylus pressure when available). The pen width follows
+          your speed (fast strokes are thinner), and each stroke is stored as a smooth filled outline. The result stays vector, so SVG export is lossless.</li>
+        <li><strong>Typing</strong>: your name is set in one of five handwriting typefaces (SIL Open Font License), with an optional slant.</li>
+        <li><strong>Photo / scan</strong>: sign on paper and take a photo. Otsu's method picks the paper/ink brightness cut-off automatically.
+          Brighter pixels fade to transparent, and the ink can be recoloured. The result is then trimmed to the ink.</li>
+      </ul>
+      <h3>2 · Sign a document</h3>
+      <p>PDFs are rendered with Mozilla's pdf.js; photos of paper documents are converted to a PDF page. Fields are stored as fractions of the
+        page as displayed, so they stay put at any zoom. On export they are mapped to PDF coordinates, including pages stored rotated:</p>
+      <div class="eq">rot 0:   X = u,     Y = H − v
+rot 90:  X = v,     Y = u
+rot 180: X = W − u, Y = v
+rot 270: X = W − v, Y = H − u     (content rotated by rot° to read upright)</div>
+      <p>The original PDF is modified with pdf-lib: text, links and pages are preserved, and signatures are embedded as images. Name, date and text fields are drawn as real text.</p>
+      <h3>3 · Signing certificate</h3>
+      <p>The optional last page records the signer, the local time with its time zone and the UTC time, every field placed, and the
+        <strong>SHA-256 fingerprint of the original file</strong>. Anyone holding the original can recompute the hash to confirm which document was signed.
+        The fingerprint of the signed file is shown after download.</p>
+      <h3>Is it legally binding?</h3>
+      <p>Many jurisdictions recognise simple electronic signatures for most everyday agreements (for example the US ESIGN Act and UETA, the EU's eIDAS
+        regulation and UK law), provided the parties intend to sign. Some documents, such as wills, certain property deeds and notarised papers, may
+        need wet ink, witnesses or a qualified signature.</p>
+      <p>InkSign produces a <em>simple</em> electronic signature, not a certificate-based (PKI) digital signature. Use a trust-service provider when a
+        qualified or advanced signature is required. This is not legal advice.</p>
+      <h3>Privacy</h3>
+      <p>Everything runs in this page: pdf.js, pdf-lib and the fonts are served from this repository, and the page makes no network requests with your data.
+        Saved signatures stay in your browser's local storage. Turn off “Remember on this device” to forget them.</p>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="vendor/pdf.min.js"></script>
+  <script src="vendor/pdf-lib.min.js"></script>
+  <script src="sign-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -712,6 +712,111 @@ suite('fallguard', (t) => {
   });
 });
 
+suite('inksign', (t) => {
+  const Sc = req('everyday-tools/inksign/sign-core.js');
+  t('pen width thins with speed and stays within limits', () => {
+    const slow = [];
+    const fast = [];
+    for (let i = 0; i < 40; i++) {
+      slow.push({ x: i * 0.3, y: 0, t: i * 10 });
+      fast.push({ x: i * 40, y: 0, t: i * 10 });
+    }
+    const opts = { minW: 1, maxW: 5 };
+    const ws = Sc.strokeWidths(slow, opts);
+    const wf = Sc.strokeWidths(fast, opts);
+    ok(ws[39] > 4.5 && wf[39] < 1.2, `slow ${ws[39].toFixed(2)} vs fast ${wf[39].toFixed(2)}`);
+    ok([...ws, ...wf].every((w) => w >= 1 - 1e-9 && w <= 5 + 1e-9), 'widths within [minW, maxW]');
+  });
+  t('stroke outline is a closed path enclosing the stroke, its width set by the pen', () => {
+    const pts = [];
+    for (let i = 0; i <= 20; i++) pts.push({ x: i * 5, y: 10, t: i });
+    const d = Sc.strokeOutline(pts, pts.map(() => 4));
+    ok(d.startsWith('M') && d.endsWith('Z'), 'closed SVG path');
+    const nums = d.match(/-?\d+(\.\d+)?/g).map(Number);
+    const ys = nums.filter((_, i) => i % 2 === 1);
+    const xs = nums.filter((_, i) => i % 2 === 0);
+    near(Math.min(...ys), 8, 1e-6, 'top edge at y − w/2');
+    near(Math.max(...ys), 12, 1e-6, 'bottom edge at y + w/2');
+    near(Math.min(...xs), -2, 0.05, 'round start cap');
+    near(Math.max(...xs), 102, 0.05, 'round end cap');
+    const dot = Sc.strokeOutline([{ x: 5, y: 5, t: 0 }], [6]);
+    ok(/^M8 5/.test(dot), 'a single tap becomes a circle of the pen radius');
+    const svg = Sc.strokesToSVG([{ points: pts, widths: pts.map(() => 4) }], '#123456', 3);
+    ok(svg.includes('viewBox="-6') && svg.includes('fill="#123456"'), 'SVG is cropped to the ink with padding');
+  });
+  t('photo clean-up: Otsu separates ink from paper; paper becomes transparent', () => {
+    const w = 40;
+    const h = 20;
+    const px = new Uint8ClampedArray(w * h * 4);
+    const rng = LM.makeRng(5);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const ink = x >= 10 && x < 30 && y >= 8 && y < 12;
+        const v = ink ? 40 + 20 * rng.next() : 215 + 25 * rng.next();
+        const i = (y * w + x) * 4;
+        px[i] = px[i + 1] = px[i + 2] = v;
+        px[i + 3] = 255;
+      }
+    }
+    const thr = Sc.otsu(px);
+    ok(thr > 60 && thr < 215, `threshold ${thr} between ink and paper`);
+    Sc.cleanInk(px, { threshold: thr + 20, softness: 45, recolor: [29, 78, 216] });
+    const bb = Sc.alphaBBox(px, w, h);
+    ok(bb && bb.x === 10 && bb.y === 8 && bb.w === 20 && bb.h === 4, `ink bbox ${JSON.stringify(bb)}`);
+    ok(px[(10 * w + 15) * 4 + 3] === 255 && px[(10 * w + 15) * 4 + 2] === 216, 'ink opaque and recoloured');
+    ok(px[3] === 0, 'paper transparent');
+    ok(Sc.alphaBBox(new Uint8ClampedArray(16), 2, 2) === null, 'empty image has no bbox');
+  });
+  t('display ↔ PDF mapping is correct for every page rotation', () => {
+    const W = 400;
+    const H = 600;
+    // the four displayed corners (top-left, top-right, bottom-right, bottom-left) → PDF corners
+    const expect = {
+      0: [[0, 600], [400, 600], [400, 0], [0, 0]],
+      90: [[0, 0], [0, 600], [400, 600], [400, 0]],
+      180: [[400, 0], [0, 0], [0, 600], [400, 600]],
+      270: [[400, 600], [400, 0], [0, 0], [0, 600]],
+    };
+    for (const rot of [0, 90, 180, 270]) {
+      const d = Sc.displaySize(W, H, rot);
+      const corners = [[0, 0], [d.w, 0], [d.w, d.h], [0, d.h]];
+      corners.forEach(([u, v], i) => {
+        const p = Sc.displayToPdf(u, v, W, H, rot, 10, 20);
+        near(p.x, expect[rot][i][0] + 10, 1e-9, `rot ${rot} corner ${i} x`);
+        near(p.y, expect[rot][i][1] + 20, 1e-9, `rot ${rot} corner ${i} y`);
+      });
+    }
+  });
+  t('a placed box, rotated for display, lands exactly on its displayed footprint', () => {
+    const W = 400;
+    const H = 600;
+    const box = { fx: 0.1, fy: 0.2, fw: 0.3, fh: 0.05 };
+    for (const rot of [0, 90, 180, 270]) {
+      const b = Sc.placeBox(box, W, H, rot);
+      const d = Sc.displaySize(W, H, rot);
+      // corners of the rotated image in PDF space (rotation about the anchor, counter-clockwise)
+      const a = (b.rotate * Math.PI) / 180;
+      const pdfCorners = [[0, 0], [b.width, 0], [b.width, b.height], [0, b.height]].map(([x, y]) => [b.x + x * Math.cos(a) - y * Math.sin(a), b.y + x * Math.sin(a) + y * Math.cos(a)]);
+      const want = [[box.fx, box.fy + box.fh], [box.fx + box.fw, box.fy + box.fh], [box.fx + box.fw, box.fy], [box.fx, box.fy]].map(([u, v]) => Sc.displayToPdf(u * d.w, v * d.h, W, H, rot));
+      pdfCorners.forEach((c, i) => {
+        near(c[0], want[i].x, 1e-9, `rot ${rot} corner ${i} x`);
+        near(c[1], want[i].y, 1e-9, `rot ${rot} corner ${i} y`);
+      });
+    }
+  });
+  t('initials, date formats and colour helpers', () => {
+    ok(Sc.initialsOf('  safiullah   rahu ') === 'SR', 'initials');
+    ok(Sc.initialsOf('Ada King Lovelace Byron') === 'AKL', 'at most three letters');
+    const d = new Date(2026, 8, 5);
+    ok(Sc.DATE_FORMATS.iso.f(d) === '2026-09-05', 'ISO');
+    ok(Sc.DATE_FORMATS.dmy.f(d) === '05/09/2026', 'day/month/year');
+    ok(Sc.DATE_FORMATS.mdy.f(d) === '09/05/2026', 'month/day/year');
+    ok(Sc.DATE_FORMATS.us.f(d) === 'September 5, 2026', 'US long');
+    ok(Sc.toHex(new Uint8Array([0, 15, 255]).buffer) === '000fff', 'hex digest');
+    ok(Sc.hexRgb('#1d4ed8').join() === '29,78,216', 'hex colour');
+  });
+});
+
 // ------------------------------------------------------------------ runner
 (async () => {
   const filters = process.argv.slice(2);
