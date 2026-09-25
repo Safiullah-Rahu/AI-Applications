@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Safiullah Rahu — Interactive Engineering Portfolio</title>
-  <meta name="description" content="Ten interactive web apps across mechatronics, medical imaging, assistive robotics, AI, agentic systems and research methods — PID servo tuning, robot motion planning, CT and MRI reconstruction, smart-wheelchair navigation, EMG prosthetics, neural networks, neuroevolution, LLM-agent workflow simulation and meta-analysis. All written from scratch; they run in the browser." />
+  <meta name="description" content="Twelve interactive web apps across mechatronics, medical imaging, assistive robotics, AI, agentic systems, research methods, digital health and energy — PID servo tuning, robot motion planning, CT and MRI reconstruction, smart-wheelchair navigation, EMG prosthetics, neural networks, neuroevolution, LLM-agent workflow simulation and meta-analysis. All written from scratch; they run in the browser." />
   <meta property="og:title" content="Safiullah Rahu — Interactive Engineering Portfolio" />
   <meta property="og:description" content="Mechatronics · Medical Imaging · Assistive Robotics · AI · Agentic Systems & Research — ten simulators that run in your browser." />
   <meta property="og:image" content="screenshots/neuroevolution-cars.png" />
@@ -13,7 +13,7 @@
   <style>
     html, body { height: auto; }
     body { overflow-x: hidden; overflow-y: auto; }
-    .hub { --mech: #fbbf24; --med: #2dd4bf; --assist: #a78bfa; --ai: #f472b6; --res: #22d3ee; min-height: 100vh; }
+    .hub { --mech: #fbbf24; --med: #2dd4bf; --assist: #a78bfa; --ai: #f472b6; --res: #22d3ee; --hle: #34d399; min-height: 100vh; }
     .wrap { width: min(1200px, calc(100% - 40px)); margin: 0 auto; }
 
     /* nav */
@@ -131,6 +131,7 @@
         <a href="#assistive-robotics">Assistive Robotics</a>
         <a href="#ai">AI</a>
         <a href="#agents-research">Agents &amp; Research</a>
+        <a href="#health-energy">Health &amp; Energy</a>
         <a class="gh" href="https://github.com/Safiullah-Rahu/AI-Applications" target="_blank" rel="noopener">GitHub</a>
       </div>
     </div>
@@ -141,19 +142,20 @@
       <div>
         <span class="eyebrow"><b></b>Interactive engineering portfolio</span>
         <h1>Engineering simulators for <span class="grad">robots, scanners, agents &amp; learning machines</span></h1>
-        <p class="lede">Ten hands-on web apps across mechatronics, medical imaging, assistive robotics, artificial intelligence, agentic systems
-          and research methods. Each one is a working simulator: tune a servo, plan a robot arm's motion, reconstruct CT and MRI scans, drive a
-          smart wheelchair, control a prosthetic hand with EMG, watch neural networks learn, stress-test LLM agent workflows or run a meta-analysis.
+        <p class="lede">Twelve hands-on web apps across mechatronics, medical imaging, assistive robotics, artificial intelligence, agentic systems,
+          research methods, digital health and energy. Each one is a working simulator: tune a servo, plan a robot arm's motion, reconstruct CT and MRI
+          scans, drive a smart wheelchair, control a prosthetic hand with EMG, watch neural networks learn, stress-test LLM agent workflows, run a
+          meta-analysis, manage an EV battery pack or catch falls with a wearable.
           Every algorithm is written from scratch, and the apps run in your browser.</p>
         <div class="hero-cta">
           <a class="btn primary" href="#mechatronics">Explore the apps</a>
           <a class="btn" href="https://github.com/Safiullah-Rahu/AI-Applications" target="_blank" rel="noopener"><i data-icon="github"></i>Source code</a>
         </div>
         <div class="facts">
-          <div class="fact"><div class="n">10</div><div class="l">interactive apps</div></div>
-          <div class="fact"><div class="n">5</div><div class="l">domains</div></div>
+          <div class="fact"><div class="n">12</div><div class="l">interactive apps</div></div>
+          <div class="fact"><div class="n">6</div><div class="l">domains</div></div>
           <div class="fact"><div class="n">0</div><div class="l">runtime dependencies</div></div>
-          <div class="fact"><div class="n">16k+</div><div class="l">lines of hand-written JS</div></div>
+          <div class="fact"><div class="n">17k+</div><div class="l">lines of hand-written JS</div></div>
         </div>
       </div>
       <div class="mosaic" aria-label="App previews">
@@ -356,6 +358,47 @@
                 test and trim-and-fill, plan studies with exact power analysis, and simulate how publication bias and p-hacking distort a literature.</p>
               <div class="tags"><span>REML meta-analysis</span><span>forest · funnel</span><span>trim-and-fill</span><span>non-central t power</span><span>p-curve</span></div>
               <div class="card-actions"><a class="btn primary" href="agentic-research/metalab/index.html">Launch app</a><a class="btn ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/agentic-research/metalab" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ Health & energy -->
+    <section class="domain" id="health-energy" style="--c:var(--hle)">
+      <div class="wrap">
+        <div class="domain-head">
+          <div class="domain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 3 10 2-5h7"/></svg></div>
+          <h2><small>Domain 06</small>Connected Health &amp; Energy</h2>
+          <p class="blurb">Embedded estimation and detection problems from products people rely on every day: EV batteries and fall alarms for older adults.</p>
+        </div>
+        <div class="cards">
+          <article class="card" style="--c:var(--hle)">
+            <a class="shot" href="health-energy/battery-bms/index.html"><img loading="lazy" src="screenshots/thumbs/battery-bms.jpg" alt="VoltWise screenshot: EV drive cycle, state-of-charge estimators and 96-cell battery pack" /><span class="launch">Launch ↗</span></a>
+            <div class="card-body">
+              <div class="card-title">
+                <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="16" height="11" rx="2.5"/><path d="M21 10.5v3"/><path d="M11 8.5l-2.5 4h3.5l-1.5 3.5"/></svg></div>
+                <div><h3>Volt<span>Wise</span></h3><div class="sub">EV battery management system</div></div>
+              </div>
+              <p>Drive an electric car through city, highway and sporty cycles on a 96-cell pack of equivalent-circuit Li-ion cells. Compare state-of-charge
+                estimation by coulomb counting, voltage lookup and extended Kalman filters (including a current-sensor-bias state), then charge with CC-CV
+                and watch passive balancing recover capacity stranded by the weakest cell.</p>
+              <div class="tags"><span>Thevenin cell model</span><span>extended Kalman filter</span><span>drive cycles</span><span>CC-CV charging</span><span>cell balancing</span></div>
+              <div class="card-actions"><a class="btn primary" href="health-energy/battery-bms/index.html">Launch app</a><a class="btn ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/health-energy/battery-bms" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a></div>
+            </div>
+          </article>
+          <article class="card" style="--c:var(--hle)">
+            <a class="shot" href="health-energy/fallguard/index.html"><img loading="lazy" src="screenshots/thumbs/fallguard.jpg" alt="FallGuard screenshot: live accelerometer, fall alert and detector benchmark" /><span class="launch">Launch ↗</span></a>
+            <div class="card-body">
+              <div class="card-title">
+                <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2"/><path d="M12 7v6l-3 7M12 13l4 6M8 10h8"/></svg></div>
+                <div><h3>Fall<span>Guard</span></h3><div class="sub">Wearable fall detection &amp; alerting</div></div>
+              </div>
+              <p>A wearable accelerometer streams daily life and falls of an older adult. Four detectors (impact threshold, posture checks, a free-fall state
+                machine and a learned model) drive an "Are you OK?" alert and caregiver escalation. A benchmark then shows why algorithms tuned on
+                simulated lab falls miss real ones, trading sensitivity against false alarms per day.</p>
+              <div class="tags"><span>IMU signal models</span><span>state machine</span><span>logistic regression</span><span>sensitivity vs false alarms</span><span>alert escalation</span></div>
+              <div class="card-actions"><a class="btn primary" href="health-energy/fallguard/index.html">Launch app</a><a class="btn ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/health-energy/fallguard" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a></div>
             </div>
           </article>
         </div>

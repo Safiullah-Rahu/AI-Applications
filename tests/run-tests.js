@@ -632,6 +632,86 @@ suite('agentflow', (t) => {
   });
 });
 
+// ================================================================== health & energy
+suite('voltwise', (t) => {
+  const B = req('health-energy/battery-bms/bms-core.js');
+  t('OCV curve: monotone PCHIP through the data points, invertible', () => {
+    B.OCV_SOC.forEach((z, i) => near(B.OCV.f(z), B.OCV_V[i], 1e-12, 'interpolates nodes'));
+    for (let z = 0; z < 1; z += 0.001) ok(B.OCV.f(z + 0.001) > B.OCV.f(z), 'monotone');
+    for (const z of [0.07, 0.33, 0.61, 0.94]) near(B.socFromOcv(B.OCV.f(z)), z, 1e-9, 'inverse');
+    near(B.OCV.df(0.5), (B.OCV.f(0.5 + 1e-6) - B.OCV.f(0.5 - 1e-6)) / 2e-6, 1e-5, 'derivative');
+  });
+  t('coulomb counting with ideal sensors tracks true SOC exactly', () => {
+    const c = B.makeCell({ ...B.CELL }, 0.8, 25);
+    const cc = new B.CoulombCounter(0.8, B.CELL.Q);
+    for (let k = 0; k < 1800; k++) { const I = 60 * Math.sin(k / 40) + 40; B.stepCell(c, I, 1, 25); cc.update(I, 1); }
+    near(cc.z, c.z, 1e-12);
+  });
+  t('EKF recovers from a 20-point wrong start; coulomb counting cannot', () => {
+    const r = B.simulateDrive({ cycle: 'city', seconds: 2400, soc0: 0.8, socGuess: 0.6, seed: 4 });
+    const ekf = B.rmse(r.ekf, r.trueSoc, 600);
+    const cc = B.rmse(r.cc, r.trueSoc, 600);
+    ok(ekf < 0.02, `EKF RMSE ${(ekf * 100).toFixed(2)} %`);
+    ok(cc > 0.15, `coulomb counting RMSE ${(cc * 100).toFixed(1)} %`);
+  });
+  t('bias-augmented EKF learns the current-sensor offset', () => {
+    const r = B.simulateDrive({ cycle: 'highway', seconds: 3600, soc0: 0.9, socGuess: 0.9, seed: 5, sensor: { offset: 2, gainErr: 0 } });
+    near(r.ekfBias, 2, 0.8, 'estimated offset (A)');
+  });
+  t('passive balancing shrinks the cell SOC spread', () => {
+    const run = (balance) => {
+      const pack = B.makePack({ nSeries: 12, socSpread: 0.03, seed: 2 });
+      for (let k = 0; k < 4 * 3600; k++) B.stepPack(pack, 0, 1, 25, { balance, bleedA: 1 });
+      const z = pack.cells.map((c) => c.z);
+      return Math.max(...z) - Math.min(...z);
+    };
+    const off = run(false);
+    const on = run(true);
+    ok(on < off * 0.6, `spread ${(off * 100).toFixed(2)} % → ${(on * 100).toFixed(2)} %`);
+  });
+});
+
+suite('fallguard', (t) => {
+  const Fg = req('health-energy/fallguard/fall-core.js');
+  const lab = Fg.makeDataset('lab', { seed: 1, perFall: 30, perAdl: 30 });
+  const real = Fg.makeDataset('real', { seed: 2, perFall: 30, perAdl: 30 });
+  const ev = (ds, mode, p) => Fg.evaluate(ds, (e) => Fg.detectRules(e, mode, p).alarms);
+  t('simulated falls have a hard impact and end lying down; daily activities stay upright', () => {
+    const rng = LM.makeRng(3);
+    const f = Fg.makeEvent('fallForward', rng, 'lab');
+    let peak = 0;
+    for (let i = 0; i < f.n; i++) peak = Math.max(peak, f.m[i]);
+    ok(peak > 2.5, `impact peak ${peak.toFixed(2)} g`);
+    ok(Math.abs(f.y[f.n - 1]) < 0.6, 'final posture is horizontal');
+    const w = Fg.makeEvent('walk', rng, 'lab');
+    ok(w.y[w.n - 1] > 0.9, 'walking ends upright');
+  });
+  t('real-world falls are harder to detect than lab falls (every rule algorithm)', () => {
+    for (const mode of ['threshold', 'posture', 'fsm']) {
+      const a = ev(lab, mode).sensitivity;
+      const b = ev(real, mode).sensitivity;
+      ok(b < a, `${mode}: lab ${(a * 100).toFixed(0)} % vs real ${(b * 100).toFixed(0)} %`);
+    }
+  });
+  t('posture and stillness checks cut false alarms of a bare impact threshold', () => {
+    const thr = ev(real, 'threshold').faPerDay;
+    const pos = ev(real, 'posture').faPerDay;
+    ok(thr > 3 && pos < thr / 4, `false alarms/day ${thr.toFixed(1)} → ${pos.toFixed(1)}`);
+  });
+  t('lowering the impact threshold trades false alarms for sensitivity', () => {
+    const hi = ev(real, 'threshold', { impact: 3 });
+    const lo = ev(real, 'threshold', { impact: 1.6 });
+    ok(lo.sensitivity > hi.sensitivity && lo.faPerDay > hi.faPerDay, 'monotone trade-off');
+  });
+  t('the learned detector beats the state machine on real-world falls', () => {
+    const tr = Fg.trainingSet(Fg.makeDataset('real', { seed: 10, perFall: 30, perAdl: 30 }));
+    const model = Fg.trainLogistic(tr.X, tr.y);
+    const ml = Fg.evaluate(real, (e) => Fg.detectML(e, model).alarms);
+    const fsm = ev(real, 'fsm');
+    ok(ml.sensitivity > fsm.sensitivity + 0.3 && ml.faPerDay < 2, `ML ${(ml.sensitivity * 100).toFixed(0)} % @ ${ml.faPerDay.toFixed(2)}/day vs FSM ${(fsm.sensitivity * 100).toFixed(0)} %`);
+  });
+});
+
 // ------------------------------------------------------------------ runner
 (async () => {
   const filters = process.argv.slice(2);

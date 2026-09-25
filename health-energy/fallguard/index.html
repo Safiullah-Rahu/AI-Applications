@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FallGuard — Wearable Fall Detection &amp; Alerting</title>
+  <meta name="description" content="A wearable fall-detection system for older adults: live accelerometer stream, four detection algorithms, caregiver alert escalation, and an honest benchmark of sensitivity versus false alarms per day — on simulated lab falls and real-world-like falls." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%2334d399' stroke-width='2'/%3E%3Cpath d='M5 12h3l2-5 3 10 2-5h4' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid; height: 100%; min-height: 680px; gap: 12px;
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas: 'live person' 'bench acts';
+    }
+    .p-live { grid-area: live; } .p-person { grid-area: person; } .p-bench { grid-area: bench; } .p-acts { grid-area: acts; }
+    .live-body { display: grid; grid-template-rows: 1fr 1fr; }
+    .person-body { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+    .alert { margin: 0 12px 12px; border-radius: 12px; border: 1px solid var(--border-2); background: var(--panel-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .alert .row { display: flex; align-items: center; gap: 10px; }
+    .alert .badge { font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; padding: 4px 9px; border-radius: 7px; border: 1px solid; white-space: nowrap; }
+    .alert .msg { font-size: 12.5px; color: var(--text-2); flex: 1; min-width: 0; }
+    .alert.idle .badge { color: var(--good); border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.1); }
+    .alert.alarm { border-color: rgba(251,113,133,.6); box-shadow: 0 0 0 2px rgba(251,113,133,.15); animation: pulse 1s infinite; }
+    .alert.alarm .badge, .alert.notified .badge { color: var(--bad); border-color: rgba(251,113,133,.5); background: rgba(251,113,133,.12); }
+    .alert.cancel .badge { color: var(--warn); border-color: rgba(251,191,36,.45); background: rgba(251,191,36,.1); }
+    @keyframes pulse { 50% { box-shadow: 0 0 0 5px rgba(251,113,133,.08); } }
+    .log { max-height: 88px; overflow: auto; font-size: 11.5px; font-family: var(--font-mono); color: var(--text-2); display: flex; flex-direction: column; gap: 2px; }
+    .log .ok { color: var(--good); } .log .bad { color: var(--bad); } .log .warn { color: var(--warn); }
+    .acts-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+    .acts-body .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+    .stat { padding: 6px 10px; }
+    .stat .v { font-size: 15.5px; }
+    .bars { display: flex; flex-direction: column; gap: 5px; }
+    .bar-row { display: grid; grid-template-columns: 158px 1fr 62px; gap: 8px; align-items: center; font-size: 12px; }
+    .bar-row .nm { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-row .b { height: 8px; border-radius: 4px; }
+    .bar-row .v { font-family: var(--font-mono); font-size: 11.5px; text-align: right; color: var(--text); white-space: nowrap; }
+    .sub-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+    .act-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .act-grid .btn { font-size: 12px; justify-content: flex-start; padding: 7px 9px; }
+    .act-grid .btn.fall { border-color: rgba(251,113,133,.35); }
+    .panel-head .seg { flex-wrap: nowrap; }
+    .panel-head .seg button { padding: 5px 9px; white-space: nowrap; }
+    .hidden { display: none !important; }
+    @media (max-width: 1100px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'person' 'live' 'bench' 'acts'; height: auto; }
+      .p-live { height: 420px; } .p-person { height: 460px; } .p-bench { height: 360px; } .p-acts { height: 480px; }
+      .acts-body .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body data-domain="health">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2"/><path d="M12 7v6l-3 7M12 13l4 6M8 10h8"/><path d="M3 21h18" opacity=".5"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Fall<span class="accent">Guard</span></div>
+          <div class="brand-sub">Wearable fall detection for older adults — live monitoring, alerting &amp; honest benchmarking</div>
+        </div>
+      </div>
+      <span class="chip">Digital health</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/health-energy/fallguard" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Wearer <span class="hint"><kbd>Space</kbd> pause</span></div>
+          <div class="seg" id="seg-profile">
+            <button data-value="real" class="active">Older adult (real-world)</button>
+            <button data-value="lab">Lab volunteer</button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <div class="field-row"><span class="label">Make them…</span></div>
+            <div class="act-grid" id="acts"></div>
+          </div>
+          <label class="switch">Automatic daily routine<input type="checkbox" id="tg-auto" checked /><span class="track"></span></label>
+          <button class="btn block" id="btn-play" style="margin-top:6px"><i data-icon="pause"></i><span>Pause stream</span></button>
+        </section>
+        <section class="section">
+          <div class="section-title">Detection algorithm</div>
+          <div class="seg" id="seg-det">
+            <button data-value="threshold">Impact</button>
+            <button data-value="posture">+ Posture</button>
+            <button data-value="fsm" class="active">State machine</button>
+            <button data-value="ml">Learned</button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <div class="field-row"><label for="sl-impact">Impact threshold</label><span class="value" data-value-for="sl-impact"></span></div>
+            <input type="range" id="sl-impact" min="1.4" max="4" step="0.05" value="2.0" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-ff">Free-fall threshold</label><span class="value" data-value-for="sl-ff"></span></div>
+            <input type="range" id="sl-ff" min="0.3" max="0.95" step="0.05" value="0.65" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-posture">Lying if tilted more than</label><span class="value" data-value-for="sl-posture"></span></div>
+            <input type="range" id="sl-posture" min="25" max="80" step="5" value="50" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-still">Stillness (max SVM std)</label><span class="value" data-value-for="sl-still"></span></div>
+            <input type="range" id="sl-still" min="0.04" max="0.3" step="0.01" value="0.12" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-mlthr">Learned model: alarm if P(fall) &gt;</label><span class="value" data-value-for="sl-mlthr"></span></div>
+            <input type="range" id="sl-mlthr" min="0.05" max="0.95" step="0.05" value="0.5" />
+          </div>
+          <div class="field">
+            <div class="field-row"><span class="label">Learned model trained on</span></div>
+            <div class="seg" id="seg-train">
+              <button data-value="lab" class="active">Lab falls</button>
+              <button data-value="real">Real-world falls</button>
+            </div>
+          </div>
+        </section>
+        <section class="section">
+          <div class="section-title">Alert escalation</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-count">“Are you OK?” window</label><span class="value" data-value-for="sl-count"></span></div>
+            <input type="range" id="sl-count" min="5" max="60" step="5" value="15" />
+          </div>
+          <div class="tiny muted" style="font-size:11.5px">The watch vibrates and asks first; if nobody cancels, the caregiver is called automatically.</div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-live">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Live accelerometer · 50 Hz · waist</div>
+              <div class="panel-sub" id="live-sub"></div>
+            </div>
+            <div class="panel-body live-body">
+              <div class="canvas-wrap"><canvas id="cv-axes"></canvas></div>
+              <div class="canvas-wrap"><canvas id="cv-svm"></canvas></div>
+            </div>
+          </section>
+          <section class="panel p-person">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Wearer &amp; alerts</div>
+              <div class="panel-sub" id="person-sub"></div>
+            </div>
+            <div class="panel-body person-body">
+              <div class="canvas-wrap"><canvas id="cv-person"></canvas></div>
+              <div class="alert idle" id="alert">
+                <div class="row"><span class="badge" id="alert-badge">Monitoring</span><span class="msg" id="alert-msg">No incident.</span><button class="btn sm hidden" id="btn-ok">I'm OK</button></div>
+                <div class="bar hidden" id="alert-bar"><span id="alert-fill" style="width:100%"></span></div>
+                <div class="log" id="log"></div>
+              </div>
+            </div>
+          </section>
+          <section class="panel p-bench">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Benchmark · sensitivity vs false alarms</div>
+              <div class="spacer"></div>
+              <div class="seg no-dot" id="seg-bench">
+                <button data-value="real" class="active">Real-world falls</button>
+                <button data-value="lab">Lab falls</button>
+              </div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-bench"></canvas></div></div>
+          </section>
+          <section class="panel p-acts">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Selected algorithm</div>
+              <div class="panel-sub" id="acts-sub"></div>
+            </div>
+            <div class="panel-body acts-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Detected</div><div class="v" id="st-sens">—</div></div>
+                <div class="stat"><div class="k">False / day</div><div class="v" id="st-fa">—</div></div>
+                <div class="stat"><div class="k">False / month</div><div class="v" id="st-month">—</div></div>
+                <div class="stat"><div class="k">Lab → real</div><div class="v" id="st-gap">—</div></div>
+              </div>
+              <div class="sub-title">Falls detected, by type</div>
+              <div class="bars" id="bars-falls"></div>
+              <div class="sub-title">False alarms per day, by activity</div>
+              <div class="bars" id="bars-adl"></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How FallGuard works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>Falls are a leading cause of injury in older adults, and the time spent on the floor after a fall matters. Wearable detectors
+        promise automatic alerts — but published algorithms are usually tested on <em>simulated</em> falls by young volunteers. When they
+        were evaluated on real falls of older adults, sensitivity dropped sharply (≈ 57 % on average) and false alarms ranged from a few to
+        dozens per day. FallGuard lets you see why.</p>
+      <h3>1 · Signals</h3>
+      <p>A waist-worn tri-axial accelerometer at 50 Hz measures specific force: ≈ 1 g upwards when still. A fall has phases:</p>
+      <ul>
+        <li><strong>Descent</strong> — the magnitude |a| drops (partial free-fall) while the body rotates.</li>
+        <li><strong>Impact</strong> — a short spike of several g.</li>
+        <li><strong>Aftermath</strong> — the body lies roughly horizontal and still.</li>
+      </ul>
+      <p>The <em>lab</em> profile produces fast descents and hard impacts (3–6.5 g). The <em>real-world</em> profile reflects older adults:
+        slower, often without free-fall, softer impacts (1.5–3.8 g), and more slow collapses. Daily activities — sitting down heavily,
+        flopping onto a bed, stumbling, stairs — produce confusing spikes and postures.</p>
+      <h3>2 · Algorithms</h3>
+      <ul>
+        <li><strong>Impact</strong>: alarm when |a| exceeds a threshold.</li>
+        <li><strong>+ Posture</strong>: after an impact, wait 2.5 s and require a lying posture (tilt of the gravity vector) and stillness.</li>
+        <li><strong>State machine</strong>: free-fall → impact within 1 s → posture → stillness, the classic low-power design for microcontrollers.</li>
+        <li><strong>Learned</strong>: logistic regression on six window features (peak, pre-impact minimum, time below 0.8 g, orientation change,
+          post-impact motion, final uprightness), trained on either lab or real-world data.</li>
+      </ul>
+      <h3>3 · Evaluation</h3>
+      <div class="eq">sensitivity = detected falls / falls
+false alarms per day = Σ_activities P(alarm | activity) × occurrences per day</div>
+      <p>Occurrences per day approximate an older adult's routine (80 walking bouts, 25 sit-downs, 20 bends, 3 stumbles…). The benchmark sweeps
+        each algorithm's threshold to draw its trade-off curve.</p>
+      <h3>4 · Alerting</h3>
+      <p>A detected fall starts a countdown on the device (“Are you OK?”). Cancelling avoids a false call; otherwise the caregiver is notified.
+        This human-in-the-loop step is how real products keep false alarms tolerable.</p>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Switch the benchmark between lab and real-world falls: every algorithm loses sensitivity.</li>
+        <li>Use the state machine on the older adult and trigger a slow collapse — no free-fall, no alarm.</li>
+        <li>Lower the impact threshold until sensitivity recovers and watch the false alarms per day climb.</li>
+        <li>Train the learned model on real-world falls instead of lab falls.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="fall-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

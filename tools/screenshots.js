@@ -205,6 +205,37 @@ const APPS = [
       await wait(page, 600);
     },
   },
+  {
+    slug: 'battery-bms',
+    url: 'health-energy/battery-bms/index.html',
+    async hero(page) {
+      await wait(page, 500);
+      await page.evaluate(() => { VoltWise.run(false); VoltWise.advance(2400); });
+      await wait(page, 500);
+    },
+    async second(page) {
+      await page.evaluate(() => { VoltWise.mode('charge'); VoltWise.advance(5000); });
+      await wait(page, 500);
+    },
+  },
+  {
+    slug: 'fallguard',
+    url: 'health-energy/fallguard/index.html',
+    async hero(page) {
+      await wait(page, 1500);
+      await page.evaluate(() => { FallGuard.run(false); FallGuard.detector('ml'); });
+      for (let k = 0; k < 8; k++) {
+        await page.evaluate(() => { FallGuard.act('fallSide'); FallGuard.advance(9.2); });
+        await wait(page, 300);
+        if ((await page.evaluate(() => FallGuard.alertState)) === 'alarm') break;
+      }
+      await wait(page, 1200);
+    },
+    async second(page) {
+      await page.evaluate(() => { FallGuard.detector('threshold'); FallGuard.bench('lab'); FallGuard.act('sitHard'); FallGuard.advance(9); });
+      await wait(page, 1500);
+    },
+  },
 ];
 
 async function thumbnail(browser, png, jpg) {

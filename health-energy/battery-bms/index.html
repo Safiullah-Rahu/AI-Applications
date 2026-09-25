@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VoltWise — EV Battery Management System Simulator</title>
+  <meta name="description" content="An electric-vehicle battery pack in the browser: equivalent-circuit Li-ion cells, drive cycles, state-of-charge estimation with coulomb counting and extended Kalman filters, CC-CV charging and passive cell balancing." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='6' width='16' height='12' rx='2.5' fill='none' stroke='%2334d399' stroke-width='2'/%3E%3Crect x='20' y='10' width='2' height='4' rx='1' fill='%2334d399'/%3E%3Cpath d='M12 8l-3 5h3l-1 4 4-6h-3l1-3z' fill='%23fbbf24'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="../../shared/css/lab.css" />
+  <style>
+    .grid-main {
+      display: grid; height: 100%; min-height: 680px; gap: 12px;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas: 'drive soc' 'pack err';
+    }
+    .p-drive { grid-area: drive; } .p-soc { grid-area: soc; } .p-pack { grid-area: pack; } .p-err { grid-area: err; }
+    .drive-body { display: flex; flex-direction: column; }
+    .drive-body .stats { padding: 10px 12px 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .stat { padding: 6px 10px; }
+    .stat .v { font-size: 15.5px; }
+    .drive-body .canvas-wrap { flex: 1; }
+    .panel-head .seg { flex-wrap: nowrap; }
+    .panel-head .seg button { padding: 5px 9px; white-space: nowrap; }
+    .est-legend i.band { width: 14px; height: 9px; border-radius: 2px; }
+    .hidden { display: none !important; }
+    @media (max-width: 1100px) {
+      .grid-main { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: 'soc' 'drive' 'err' 'pack'; height: auto; }
+      .p-soc, .p-err { height: 380px; } .p-drive { height: 420px; } .p-pack { height: 320px; }
+    }
+  </style>
+</head>
+<body data-domain="health">
+  <div class="app">
+    <header class="topbar">
+      <a class="back-link" href="../../index.html" title="Back to portfolio"><i data-icon="back"></i><span>Portfolio</span></a>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="16" height="11" rx="2.5"/><path d="M21 10.5v3"/><path d="M11 8.5l-2.5 4h3.5l-1.5 3.5"/></svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">Volt<span class="accent">Wise</span></div>
+          <div class="brand-sub">EV battery management — cell models, state-of-charge estimation, charging &amp; cell balancing</div>
+        </div>
+      </div>
+      <span class="chip">Energy systems</span>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+        <button class="btn sm ghost" data-open-drawer><i data-icon="info"></i>How it works</button>
+        <a class="btn sm ghost" href="https://github.com/Safiullah-Rahu/AI-Applications/tree/main/health-energy/battery-bms" target="_blank" rel="noopener"><i data-icon="code"></i>Source</a>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="section">
+          <div class="section-title">Simulation <span class="hint"><kbd>Space</kbd> pause</span></div>
+          <div class="btn-row">
+            <button class="btn primary" id="btn-play"><i data-icon="pause"></i><span>Pause</span></button>
+            <button class="btn" id="btn-reset" title="Restart with a fresh pack"><i data-icon="reset"></i>Reset</button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <div class="field-row"><span class="label">Time warp</span></div>
+            <div class="seg" id="seg-speed">
+              <button data-value="10">10×</button>
+              <button data-value="60" class="active">60×</button>
+              <button data-value="240">240×</button>
+              <button data-value="900">900×</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><span class="label">Operating mode</span></div>
+            <div class="seg" id="seg-mode">
+              <button data-value="drive" class="active">Drive</button>
+              <button data-value="rest">Park</button>
+              <button data-value="charge">Charge</button>
+            </div>
+          </div>
+          <div class="field" id="f-cycle">
+            <div class="field-row"><span class="label">Drive cycle</span></div>
+            <div class="seg" id="seg-cycle">
+              <button data-value="city" class="active">City</button>
+              <button data-value="highway">Highway</button>
+              <button data-value="aggressive">Sporty</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-amb">Ambient temperature</label><span class="value" data-value-for="sl-amb"></span></div>
+            <input type="range" id="sl-amb" min="-15" max="40" step="1" value="20" />
+          </div>
+        </section>
+        <section class="section">
+          <div class="section-title">State-of-charge estimation</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-guess">BMS initial SOC guess</label><span class="value" data-value-for="sl-guess"></span></div>
+            <input type="range" id="sl-guess" min="0.1" max="1" step="0.01" value="0.6" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-offset">Current-sensor offset</label><span class="value" data-value-for="sl-offset"></span></div>
+            <input type="range" id="sl-offset" min="0" max="3" step="0.1" value="0.8" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-vnoise">Voltage-sensor noise</label><span class="value" data-value-for="sl-vnoise"></span></div>
+            <input type="range" id="sl-vnoise" min="0" max="20" step="1" value="5" />
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="sl-soh">True cell health (capacity)</label><span class="value" data-value-for="sl-soh"></span></div>
+            <input type="range" id="sl-soh" min="0.7" max="1" step="0.01" value="1" />
+          </div>
+          <div class="tiny muted" style="font-size:11.5px">The BMS always assumes a new cell (100 % capacity) — lower the true health to see model mismatch.</div>
+        </section>
+        <section class="section">
+          <div class="section-title">Pack</div>
+          <div class="field">
+            <div class="field-row"><label for="sl-spread">Cell capacity spread</label><span class="value" data-value-for="sl-spread"></span></div>
+            <input type="range" id="sl-spread" min="0" max="0.06" step="0.005" value="0.02" />
+          </div>
+          <label class="switch">Passive cell balancing<input type="checkbox" id="tg-balance" checked /><span class="track"></span></label>
+          <div class="field">
+            <div class="field-row"><label for="sl-bleed">Bleed current</label><span class="value" data-value-for="sl-bleed"></span></div>
+            <input type="range" id="sl-bleed" min="0.05" max="2" step="0.05" value="0.5" />
+          </div>
+          <div class="tiny muted" style="font-size:11.5px">Spread and start SOC apply on Reset.</div>
+          <div class="field" style="margin-top:10px">
+            <div class="field-row"><label for="sl-soc0">Start SOC (true)</label><span class="value" data-value-for="sl-soc0"></span></div>
+            <input type="range" id="sl-soc0" min="0.1" max="1" step="0.01" value="0.85" />
+          </div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="grid-main">
+          <section class="panel p-drive">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Vehicle</div>
+              <div class="panel-sub" id="drive-sub"></div>
+            </div>
+            <div class="panel-body drive-body">
+              <div class="stats">
+                <div class="stat"><div class="k">Speed</div><div class="v" id="st-speed">—</div></div>
+                <div class="stat"><div class="k">Battery power</div><div class="v" id="st-power">—</div></div>
+                <div class="stat accent"><div class="k">Range left</div><div class="v" id="st-range">—</div></div>
+                <div class="stat"><div class="k">Pack</div><div class="v" id="st-pack">—</div></div>
+                <div class="stat"><div class="k">Cell temp</div><div class="v" id="st-temp">—</div></div>
+                <div class="stat"><div class="k">Trip</div><div class="v" id="st-trip">—</div></div>
+              </div>
+              <div class="canvas-wrap"><canvas id="cv-drive"></canvas></div>
+            </div>
+          </section>
+          <section class="panel p-soc">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>State of charge — monitored cell</div>
+              <div class="panel-sub" id="soc-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-soc"></canvas></div></div>
+          </section>
+          <section class="panel p-pack">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Battery pack · 96 cell groups</div>
+              <div class="panel-sub" id="pack-sub"></div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-pack"></canvas></div></div>
+          </section>
+          <section class="panel p-err">
+            <div class="panel-head">
+              <div class="panel-title"><span class="dot"></span>Estimator error</div>
+              <div class="panel-sub" id="err-sub"></div>
+              <div class="spacer"></div>
+              <div class="seg no-dot" id="seg-errtab">
+                <button data-value="err" class="active">SOC error</button>
+                <button data-value="volt">Cell voltage</button>
+                <button data-value="ocv">OCV curve</button>
+              </div>
+            </div>
+            <div class="panel-body"><div class="canvas-wrap"><canvas id="cv-err"></canvas></div></div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop"></div>
+  <aside class="drawer" aria-label="How it works">
+    <div class="drawer-head">
+      <h2>How VoltWise works</h2>
+      <div class="topbar-spacer"></div>
+      <button class="btn sm ghost" data-close-drawer>Close <kbd>Esc</kbd></button>
+    </div>
+    <div class="drawer-body">
+      <p>An EV's range estimate is only as good as its battery-management system (BMS). State of charge (SOC) cannot be measured
+        directly — it has to be <em>estimated</em> from noisy current and voltage sensors, with a model of the cell.</p>
+      <h3>1 · Cell model</h3>
+      <p>Each of the 96 series cell groups (2 × 50 Ah NMC cells in parallel) is a first-order Thevenin equivalent circuit:</p>
+      <div class="eq">SOC' = −I / (3600·Q)
+v₁' = −v₁/τ + I/C₁            (τ = R₁C₁ ≈ 20 s)
+V = OCV(SOC) − v₁ − R₀(SOC, T)·I</div>
+      <p>OCV(SOC) is a monotone cubic (PCHIP) fit to a typical NMC curve; R₀ rises at low SOC and in the cold (Arrhenius). A lumped thermal
+        model heats each cell with I²R₀ + v₁²/R₁ and cools it to ambient. Cells differ by a manufacturing spread in capacity and resistance.</p>
+      <h3>2 · Vehicle</h3>
+      <div class="eq">P = (m·a + ½ρC_dA·v² + C_rr·m·g)·v / η  (+ auxiliaries),   regen: P·η_regen</div>
+      <p>Procedural city, highway and sporty drive cycles produce the battery current.</p>
+      <h3>3 · Estimators</h3>
+      <ul>
+        <li><strong>Coulomb counting</strong> integrates measured current — exact in theory, but it never corrects a wrong starting value and
+          integrates every sensor offset and capacity error forever.</li>
+        <li><strong>Voltage lookup</strong> inverts the OCV curve — self-correcting, but noisy under load and blind in flat parts of the curve.</li>
+        <li><strong>Extended Kalman filter</strong> fuses both: predicts with coulomb counting and the RC model, corrects with the voltage
+          measurement through the linearised OCV slope, and tracks its own uncertainty (±3σ band).</li>
+        <li><strong>EKF + bias state</strong> additionally estimates the current-sensor offset as a third state.</li>
+      </ul>
+      <h3>4 · Charging &amp; balancing</h3>
+      <p>Charging is constant-current until the highest cell reaches 4.2 V, then constant-voltage. In a series string the pack is empty when
+        the <em>weakest</em> cell is empty and full when the <em>strongest</em> is full — energy left in the other cells is stranded. Passive
+        balancing bleeds high cells through resistors so the string ends up aligned.</p>
+      <h3>Things to try</h3>
+      <ul>
+        <li>Start the BMS at 60 % while the pack is at 85 %: coulomb counting stays 25 % off; the EKF converges within minutes.</li>
+        <li>Raise the current-sensor offset and drive for an hour: the plain EKF drifts slightly, the bias-state EKF learns the offset.</li>
+        <li>Drop the ambient temperature to −10 °C and drive the sporty cycle.</li>
+        <li>Switch to Charge with balancing off, then on, and watch the cell spread at the top.</li>
+      </ul>
+    </div>
+  </aside>
+
+  <script src="../../shared/js/lab-math.js"></script>
+  <script src="../../shared/js/lab-ui.js"></script>
+  <script src="bms-core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
